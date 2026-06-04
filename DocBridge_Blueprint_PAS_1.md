@@ -4,346 +4,293 @@
 |---|---|
 | Document Type | Stage 1 Blueprint |
 | Status | Draft |
-| Owner | Liam / Payman |
-| Last Updated | May 2026 |
+
+### Change Log
+| Version | Changes | Date | Author |
+|---|---|---|---|
+| 1| Initial Draft | Jul 2026 | P.F |
+---
+# 1. Executive Summary
+
+DocBridge is a document upload orchestration platform designed to simplify clinical document distribution.
+
+Users upload files once, map them to multiple destinations, and submit a single request. The system manages delivery, validation, retries, auditing, and status tracking asynchronously.
+
+DocBridge acts as an orchestration layer above existing document management systems and does not replace destination repositories.
 
 ---
 
-## 1. Executive Summary
+# 2. Problem Statement
 
-DocBridge is a batch upload orchestration system for clinical trial teams that need to distribute the same document set across multiple hospitals, binders, folders, or study destinations.
+Clinical trial coordinators frequently upload the same document set to multiple teams, binders, and folders.
 
-Instead of requiring users to manually upload files to each destination, DocBridge lets users upload once, map files to many destinations, submit a single job, and track each delivery independently.
+Current challenges include:
 
-The system acts as an orchestration layer on top of existing authentication and document management systems. It does not replace the client’s document repository.
+- Repetitive manual uploads
+- High operational effort
+- Upload failures discovered late
+- Limited visibility into upload status
+- Difficult recovery from failures
+- Increased compliance risk
 
----
-
-## 2. Problem
-
-Clinical trial coordinators currently perform repetitive manual uploads across many destinations.
-
-This creates operational risk:
-
-- Same file uploaded repeatedly
-- Failures discovered late
-- No centralized job-level visibility
-- Manual recovery when one upload fails
-- Limited audit trail across upload attempts
-- Higher chance of human error
-
-DocBridge reduces this by separating user submission from background delivery execution.
+The result is slower document distribution and increased administrative burden.
 
 ---
 
-## 3. Goals
+# 3. Goals
 
-| Goal | Description |
-|---|---|
-| Batch upload | Users can upload multiple files in one session. |
-| Multi-destination delivery | A file can be mapped to one or more target destinations. |
-| Async processing | Large or slow uploads do not block the user workflow. |
-| Failure isolation | One failed delivery does not fail the entire batch. |
-| Recovery | Failed tasks can be retried without requiring users to re-upload files. |
-| Security | Files are protected in transit, at rest, and during processing. |
-| Auditability | Each job and task has traceable lifecycle events. |
+## 3.1 Business Goals
 
----
+| Goal |
+|--------|
+| Reduce manual effort |
+| Improve upload reliability |
+| Improve operational visibility |
+| Improve auditability |
 
-## 4. Non-Goals
+## 3.2 Technical Goals
 
-DocBridge does not handle:
-
-- Clinical document authoring
-- Clinical content validation
-- Long-term document retention
-- Replacing the client document management system
-- Building a new identity provider
-- Final API schemas or database schemas in this stage
-
-Those belong in later technical design or implementation stages.
+| Goal |
+|--------|
+| Support batch uploads |
+| Support multiple destinations per file |
+| Process uploads asynchronously |
+| Isolate failures |
+| Scale horizontally |
+| Maintain end-to-end traceability |
 
 ---
 
-## 5. High-Level Architecture
+# 4. Assumptions
 
-> Diagram placeholder: Replace this text block with a visual architecture diagram in the final version.
+| Assumption |
+|------------|
+| Existing document platforms expose upload APIs |
+| Authentication is provided by an existing enterprise provider |
+| Destination permissions are enforced by existing systems |
+| Uploaded files must remain available until processing completes |
+| Destination systems are outside the control of DocBridge |
+
+---
+
+# 5. Functional Requirements
+
+| Capability | Requirement |
+|------------|-------------|
+| Upload Management | Upload multiple files in a single session |
+| Destination Mapping | Associate files to multiple destinations |
+| Batch Submission | Submit uploads as a single request |
+| Job Tracking | Track overall submission status |
+| Task Tracking | Track individual upload status |
+| Retry Handling | Retry transient failures |
+| Recovery | Replay failed tasks |
+| Validation | Verify successful delivery |
+
+---
+
+# 6. Non-Functional Requirements
+
+| Category | Requirement |
+|-----------|-------------|
+| Availability | 99.9% uptime |
+| Concurrent Users | 500 peak users |
+| Throughput | ~10,000 uploads/day |
+| File Size | Up to 5 GB |
+| Reliability | At-least-once task processing |
+| Security | Encryption in transit and at rest |
+| Auditability | Full lifecycle tracking |
+| Scalability | Horizontal scaling |
+
+---
+
+# 7. High-Level Architecture
+
+> Architecture Diagram Placeholder
 
 ```text
-+-------------+
-| Web Client  |
-+-------------+
++------------+
+| Web Client |
++------------+
        |
        v
-+-------------+        +-------------------+
-| Upload API  | -----> | Metadata Store    |
-+-------------+        | Jobs / Tasks      |
-       |              +-------------------+
-       v
-+-------------------+
-| Object Storage    |
-| Temporary Files   |
-+-------------------+
++----------------+
+| Upload API     |
++----------------+
        |
        v
-+-------------------+
-| Task Queue        |
-+-------------------+
++----------------+
+| Object Storage |
++----------------+
        |
        v
-+-------------------+
-| Upload Workers    |
-+-------------------+
++----------------+
+| Metadata Store |
++----------------+
        |
        v
-+-------------------+
-| Region Router     |
-+-------------------+
++----------------+
+| Queue          |
++----------------+
        |
        v
-+---------------------------+
-| Destination Document APIs |
-+---------------------------+
++----------------+
+| Workers        |
++----------------+
+       |
+       v
++----------------------+
+| Destination APIs     |
++----------------------+
 ```
 
 ---
 
-## 6. Major Components
+# 8. Component Overview
 
 | Component | Responsibility |
-|---|---|
-| Web Client | Upload files, select destinations, submit jobs, view progress. |
-| Upload API | Validates request, stores files, creates job/task metadata, enqueues work. |
-| Object Storage | Temporarily stores uploaded files durably before delivery. |
-| Metadata Store | Stores jobs, tasks, statuses, retry counts, file references, audit references. |
-| Task Queue | Decouples user submission from background processing. |
-| Upload Workers | Consume tasks, upload files to destinations, validate delivery, update status. |
-| Region Router | Selects destination endpoint or routing path based on destination metadata. |
-| Destination APIs | External or client-provided document management APIs. |
+|------------|---------------|
+| Client | Upload files, select destinations, monitor progress |
+| Upload API | Accept uploads, create jobs and tasks |
+| Object Storage | Store uploaded files |
+| Metadata Store | Track jobs, tasks, and status |
+| Queue | Decouple ingestion from processing |
+| Workers | Execute upload tasks |
+| Destination APIs | Final delivery target |
 
 ---
 
-## 7. Datastore Choices
+# 9. Datastore Strategy
 
-Specific technologies do not need to be finalized in Stage 1, but the system needs three datastore categories.
-
-| Store Type | Used For | Why |
-|---|---|---|
-| Object storage | Uploaded file payloads | Large files should not live in the database. Object storage provides durability, encryption, and scalable file access. |
-| Metadata database | Jobs, tasks, statuses, destination mappings | The system needs queryable state for progress tracking, retries, and audit workflows. |
-| Queue | Pending upload tasks | Async delivery requires durable buffering and retry-friendly task processing. |
-
-Potential examples for later stages:
-
-- Object storage: S3, Azure Blob Storage, GCS
-- Metadata store: PostgreSQL, DynamoDB, Aurora
-- Queue: SQS, RabbitMQ, Kafka, Pub/Sub
+| Datastore Type | Purpose | Rationale |
+|----------------|----------|-----------|
+| Object Storage | Uploaded files | Durable, scalable storage for large files |
+| Relational Database | Jobs, tasks, metadata | Strong consistency and relationship modeling |
+| Queue | Asynchronous processing | Decouples ingestion and execution |
+| Log Store | Audit events and diagnostics | Compliance and observability |
 
 ---
 
-## 8. File Lifecycle
+# 10. Core Concepts
 
-```text
-1. User uploads one or more files.
-2. Upload API validates request and file metadata.
-3. Files are stored in encrypted temporary object storage.
-4. Job record is created.
-5. Task records are created for each file-destination pair.
-6. Tasks are pushed to a queue.
-7. Workers consume tasks asynchronously.
-8. Region router selects the destination API endpoint.
-9. Worker uploads the file to the destination system.
-10. Worker validates delivery result and checksum where supported.
-11. Task status is updated.
-12. Job aggregate status is recalculated.
-13. Audit event is recorded.
-```
-
-### Example
-
-If a user uploads 5 files and maps each file to 4 destinations:
-
-```text
-5 files x 4 destinations = 20 delivery tasks
-```
-
-Each task is processed independently. If task 7 fails, the other 19 can still complete.
+| Term | Definition |
+|--------|------------|
+| Job | A user submission containing files and destinations |
+| Task | A single file-to-destination delivery operation |
+| Worker | A stateless process that executes tasks |
+| Destination | Target binder, folder, or repository |
+| Upload Session | User interaction that creates a job |
 
 ---
 
-## 9. Asynchronous Processing Strategy
+# 11. File Lifecycle
 
-DocBridge should not upload all files to all destinations inside the initial user request.
-
-The upload request should only:
-
-1. Authenticate the user
-2. Validate the submission
-3. Persist files
-4. Persist metadata
-5. Enqueue tasks
-6. Return a Job ID
-
-Background workers perform destination delivery.
-
-This design improves:
-
-- User responsiveness
-- Reliability
-- Retry handling
-- Failure isolation
-- Horizontal scalability
-
-### Task Model
-
-A task represents one file going to one destination.
-
-```text
-Task = File + Destination + Status + RetryCount + Checksum
-```
-
-This keeps failure handling simple and precise.
+| Step | Description |
+|--------|------------|
+| 1 | User uploads files |
+| 2 | Files stored in object storage |
+| 3 | Job created |
+| 4 | Tasks generated |
+| 5 | Tasks published to queue |
+| 6 | Worker consumes task |
+| 7 | Destination selected |
+| 8 | File uploaded |
+| 9 | Delivery validated |
+| 10 | Task status updated |
+| 11 | Job status recalculated |
+| 12 | Audit event recorded |
 
 ---
 
-## 10. Security Strategy
+# 12. Security Strategy
 
-| Requirement | Blueprint Approach |
-|---|---|
-| Authentication | Delegate to existing enterprise identity provider. |
-| Authorization | Enforce permission-aware destination browsing and submission. |
-| File encryption at rest | Store files encrypted in object storage. |
-| Metadata encryption at rest | Use encrypted database storage. |
-| Encryption in transit | Use HTTPS/TLS for all client, service, and destination API calls. |
-| Secrets management | Store credentials/tokens in a managed secrets system. |
-| Integrity | Use checksums such as SHA-256 before and after delivery where supported. |
-| Auditability | Record immutable lifecycle events for jobs and tasks. |
-
-Security design principle:
-
-> DocBridge should never become a bypass around the client’s existing identity, authorization, or document access model.
+| Area | Approach |
+|--------|----------|
+| Encryption at Rest | Files and metadata encrypted |
+| Encryption in Transit | TLS for all communications |
+| Authentication | Enterprise identity provider |
+| Authorization | Permission-aware destination access |
+| Integrity Validation | Checksum verification before and after delivery |
+| Auditability | Immutable lifecycle logging |
 
 ---
 
-## 11. Reliability and Failure Handling
+# 13. Reliability Strategy
 
-| Failure Scenario | Handling Strategy |
-|---|---|
-| Destination API timeout | Retry with exponential backoff. |
-| Destination API unavailable | Retry, then move task to failed state or DLQ. |
-| Worker crash | Task remains recoverable from queue or metadata. |
-| Partial job failure | Failed tasks are isolated; successful tasks remain complete. |
-| Duplicate task execution | Workers must be idempotent. |
-| File corruption | Detect with checksum validation. |
-| Queue backlog | Scale workers horizontally. |
+## 13.1 Failure Isolation
 
-### Retry Strategy
+Each task executes independently.
 
-Use bounded retries with exponential backoff.
+A failed upload does not prevent other uploads within the same job from completing.
 
-Example:
+## 13.2 Retry Handling
 
-```text
-Attempt 1: immediate
-Attempt 2: +1 minute
-Attempt 3: +2 minutes
-Attempt 4: +4 minutes
-Attempt 5: move to failed state / DLQ
-```
+| Mechanism | Purpose |
+|------------|---------|
+| Exponential Backoff | Retry transient failures without overwhelming destination systems |
+| Retry Limit | Prevent infinite retry loops |
+| Dead-Letter Queue | Preserve exhausted failures for investigation |
 
----
+## 13.3 Durability
 
-## 12. Job and Task Status Model
+| Requirement | Rationale |
+|-------------|-----------|
+| Files persisted before processing | Prevents data loss |
+| Metadata persisted before processing | Enables recovery and status tracking |
+| Tasks queued only after persistence succeeds | Avoids orphaned work |
 
-### Task Status
+## 13.4 Recovery
 
-| Status | Meaning |
-|---|---|
-| Pending | Task created but not started. |
-| InProgress | Worker is processing the task. |
-| Completed | File delivered successfully. |
-| Failed | Task failed after retry policy was exhausted. |
-| RetryScheduled | Task failed transiently and will retry. |
+Workers are idempotent.
 
-### Job Status
-
-| Status | Meaning |
-|---|---|
-| Pending | Job created, tasks not complete. |
-| InProgress | At least one task is running. |
-| Completed | All tasks completed. |
-| CompletedWithFailures | Some tasks completed and some failed. |
-| Failed | All tasks failed or job-level failure occurred. |
+Reprocessing the same task multiple times produces the same final outcome and does not create duplicate uploads.
 
 ---
 
-## 13. Observability
-
-Minimum observability requirements:
-
-| Signal | Examples |
-|---|---|
-| Metrics | Queue depth, task success rate, retry count, worker errors, upload latency. |
-| Logs | Job ID, task ID, file ID, destination ID, correlation ID. |
-| Alerts | DLQ growth, high failure rate, stuck jobs, queue backlog, destination API failures. |
-| Audit Events | Job created, task queued, upload started, upload completed, retry scheduled, task failed. |
-
----
-
-## 14. Key Architectural Decisions
+# 14. Key Architectural Decisions
 
 | Decision | Rationale |
-|---|---|
-| Use async workers | Destination uploads may be slow, unreliable, or large. |
-| Store files before queuing tasks | Prevents queued work from referencing missing files. |
-| Model each file-destination pair as a task | Enables independent retry, tracking, and failure isolation. |
-| Use object storage for files | Better fit for large binary payloads than relational storage. |
-| Use metadata store for jobs/tasks | Enables status tracking, reporting, and recovery. |
-| Use queue between API and workers | Decouples user request path from delivery execution. |
-| Make workers idempotent | Required for safe retry and replay. |
-| Delegate authentication | Reduces scope and preserves client security model. |
+|------------|------------|
+| Asynchronous processing | Faster user experience and better scalability |
+| Queue-based architecture | Handles traffic spikes and retries |
+| Task-based execution | Failure isolation and granular tracking |
+| Object storage before processing | Prevents data loss and supports replay |
+| Stateless workers | Horizontal scalability |
+| Idempotent workers | Safe duplicate task execution |
 
 ---
 
-## 15. Open Questions and Decisions Needed
+# 15. Open Questions
 
 | Topic | Question |
-|---|---|
-| Destination API behavior | Do destination APIs support checksum validation after upload? |
-| File retention | How long should temporary files remain after job completion? |
-| Max file size | What file size limits must be supported? |
-| Max destinations per job | What is the expected upper bound? |
-| User permissions | Are permissions checked only at submission, or again during delivery? |
-| Duplicate uploads | Should the system prevent duplicates or allow overwrite/versioning? |
-| Regional routing | Are destinations region-specific, tenant-specific, or both? |
-| Audit retention | How long must audit events be retained? |
-| Compliance | Are HIPAA, GxP, 21 CFR Part 11, or customer-specific controls required? |
+|---------|----------|
+| Retry | Can users manually retry failed tasks? |
+| Cancellation | Can users cancel active jobs? |
+| File Replacement | Can existing files be overwritten? |
+| Status Updates | Real-time updates or polling? |
+| Authentication | What provider already exists? |
+| Compliance | Additional regulatory requirements? |
+| Retention | How long should uploaded files remain stored? |
+| Regions | Are destination systems region-specific? |
 
 ---
 
-## 16. Evaluation Alignment
+# 16. Review Areas
 
-| Evaluation Area | Blueprint Coverage |
-|---|---|
-| Design makes sense for the problem | Batch upload, async processing, task-level delivery. |
-| Technical decisions are justified | Datastore, queue, worker, and object storage choices explained. |
-| Hard parts considered | Failure handling, retries, security, auditability, idempotency. |
-| Senior engineer reviewable | Major components, data movement, and open decisions are explicit. |
-| Implementation path exists | Stage 2 can expand this into APIs, schemas, tests, and final technology choices. |
+Feedback requested on:
+
+- Overall architecture
+- Job and task model
+- Datastore selection
+- Security strategy
+- Reliability approach
+- Scalability assumptions
+- Open questions
 
 ---
 
-## 17. Summary
+# 17. Conclusion
 
-DocBridge should be designed as a secure, asynchronous upload orchestration system.
+DocBridge provides a scalable, secure, and reliable document upload orchestration platform that simplifies clinical document distribution workflows.
 
-The core idea is simple:
+The proposed architecture separates ingestion, storage, processing, and delivery responsibilities to improve reliability, observability, and scalability while remaining independent from destination document management systems.
 
-```text
-User submission creates a Job.
-Each file-destination pair creates a Task.
-Workers process Tasks independently.
-The system tracks, retries, validates, and audits every delivery.
-```
-
-This architecture keeps the user workflow simple while giving the backend enough structure to handle scale, failures, and security requirements thoughtfully.
