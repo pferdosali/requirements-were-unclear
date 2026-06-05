@@ -64,6 +64,47 @@ The platform acts as an orchestration layer above existing document management s
 | Security by Default | Encryption and least privilege |
 | Observable Systems | Full audit and tracing support |
 
+## 4.1 DocBridge High Level Diagram
+
+```mermaid
+flowchart LR
+    User[User] --> UI[Web UI]
+    UI --> API[API Service]
+    API --> DB[(Metadata DB)]
+    API --> S3[(Object Storage)]
+    API --> Q[Queue]
+
+    Q --> W[Upload Workers]
+    W --> S3
+    W --> R[Region Router]
+    R --> D[Destination APIs]
+
+    W --> DB
+    API --> L[Audit Logs]
+    W --> L
+```
+## 4.2 Cloud Service Mapping 
+
+| Architecture Block | Purpose | Recommended AWS Service | Recommended Google Cloud Equivalent |
+|---|---|---|---|
+| Web UI | User-facing interface for uploading files, selecting destinations, and tracking progress | Amazon CloudFront + S3 Static Website Hosting or AWS Amplify | Firebase Hosting or Cloud Storage + Cloud CDN |
+| API Service | Handles job creation, validation, metadata updates, and status retrieval | Amazon ECS / AWS Fargate or AWS Lambda + API Gateway | Cloud Run or Cloud Functions + API Gateway |
+| Authentication Provider | Delegated identity and access control | Amazon Cognito or IAM Identity Center | Firebase Authentication or Identity Platform |
+| Object Storage | Temporary encrypted storage for uploaded files before processing | Amazon S3 | Cloud Storage |
+| Metadata Database | Stores jobs, tasks, file metadata, status, retries, and audit references | Amazon DynamoDB or Amazon RDS | Firestore, Cloud Spanner, or Cloud SQL |
+| Queue | Decouples job submission from async upload execution | Amazon SQS | Pub/Sub or Cloud Tasks |
+| Upload Workers | Consume tasks, retrieve files, upload to destinations, validate results, and update status | ECS/Fargate Workers, AWS Lambda, or AWS Batch | Cloud Run Jobs, Cloud Functions, or GKE |
+| Region Router | Resolves destination endpoint, region, tenant, and routing rules | Lambda, ECS Service, or config-backed service using DynamoDB/AppConfig | Cloud Run service using Firestore/Config Controller |
+| Destination APIs | External hospital, binder, or document-management-system APIs | External integration endpoint | External integration endpoint |
+| Audit Logs | Immutable structured logs for traceability and compliance | CloudWatch Logs, CloudTrail, or S3 log archive | Cloud Logging, Cloud Audit Logs, or Cloud Storage archive |
+| Secrets Management | Stores API credentials, tokens, and destination secrets | AWS Secrets Manager or Parameter Store | Secret Manager |
+| Encryption / Key Management | Manages encryption keys for files, metadata, and secrets | AWS KMS | Cloud KMS |
+| Monitoring & Metrics | Tracks queue depth, upload latency, failures, retries, and system health | Amazon CloudWatch | Cloud Monitoring |
+| Distributed Tracing | Traces requests across API, queue, workers, and destination calls | AWS X-Ray | Cloud Trace |
+| Dead Letter Queue | Holds failed tasks after retry exhaustion | SQS DLQ | Pub/Sub dead-letter topic or Cloud Tasks retry/dead-letter pattern |
+| CI/CD Pipeline | Builds, tests, scans, and deploys services | GitHub Actions + AWS CodePipeline/CodeBuild | GitHub Actions + Cloud Build |
+
+
 ---
 
 # 5. Functional Flow
