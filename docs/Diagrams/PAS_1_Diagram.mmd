@@ -1,0 +1,45 @@
+High-Level Architecture
+
+```mermaid
+flowchart LR
+
+    User[Clinical Trial Coordinator]
+
+    User --> UI[Web UI]
+
+    UI --> LB[Load Balancer]
+    LB --> GW[Backend Gateway]
+
+    GW --> UploadAPI[Upload API]
+    GW --> MetadataAPI[Metadata API]
+    GW --> WebSocket[WebSocket Service]
+
+    UploadAPI --> ObjectStore[(Encrypted Object Storage)]
+
+    MetadataAPI --> DB[(PostgreSQL Metadata Store)]
+
+    MetadataAPI --> JobQueue[Job Queue]
+    MetadataAPI --> TaskQueue[Task Queue]
+
+    JobQueue --> JobWorker[Job Worker]
+    TaskQueue --> TaskWorkers[Task Workers]
+
+    JobQueue --> JobDLQ[Job Dead Letter Queue]
+    TaskQueue --> TaskDLQ[Task Dead Letter Queue]
+
+    TaskWorkers --> RegionRouter[Region Router]
+
+    RegionRouter --> RegionA[Destination API - Region A]
+    RegionRouter --> RegionB[Destination API - Region B]
+
+    RegionA --> PlatformA[Existing Document Platform]
+    RegionB --> PlatformB[Existing Document Platform]
+
+    TaskWorkers --> DB
+    DB --> WebSocket
+    WebSocket --> UI
+
+    KMS[KMS]
+    KMS --> ObjectStore
+    KMS --> DB
+```
