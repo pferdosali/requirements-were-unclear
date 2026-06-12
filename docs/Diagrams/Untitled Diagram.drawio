@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Overall-Diagram" id="Xauzskn0iYLa3f8TggF1">
-    <mxGraphModel dx="2728" dy="2958" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" background="none" math="0" shadow="0">
+    <mxGraphModel dx="909" dy="1719" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" background="none" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -231,6 +231,11 @@
         <mxCell id="ZxT0anLmeUN1lRlBXtKW-5" edge="1" parent="1" source="ZxT0anLmeUN1lRlBXtKW-3" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=12;startSize=8;endSize=8;" target="ZxT0anLmeUN1lRlBXtKW-4" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
+        <mxCell id="kZjGEyZ31KSyDfQOjVAd-20" connectable="0" parent="ZxT0anLmeUN1lRlBXtKW-5" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;" value="Fanout" vertex="1">
+          <mxGeometry relative="1" x="-0.1908" y="4" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
         <mxCell id="ZxT0anLmeUN1lRlBXtKW-52" edge="1" parent="1" source="ZxT0anLmeUN1lRlBXtKW-3" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=12;startSize=8;endSize=8;" target="ZxT0anLmeUN1lRlBXtKW-9" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
@@ -247,7 +252,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="ZxT0anLmeUN1lRlBXtKW-4" parent="1" style="whiteSpace=wrap;strokeWidth=2;rounded=0;labelBackgroundColor=none;" value="Task Queue 1" vertex="1">
+        <mxCell id="ZxT0anLmeUN1lRlBXtKW-4" parent="1" style="whiteSpace=wrap;strokeWidth=2;rounded=0;labelBackgroundColor=none;" value="Task Queue [n]" vertex="1">
           <mxGeometry height="50" width="166" x="1234" y="495" as="geometry" />
         </mxCell>
         <mxCell id="ZxT0anLmeUN1lRlBXtKW-9" parent="1" style="whiteSpace=wrap;strokeWidth=2;rounded=0;labelBackgroundColor=none;" value="DLQ" vertex="1">
@@ -261,8 +266,8 @@
             <mxPoint x="1920.0000000000005" y="630" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="ZxT0anLmeUN1lRlBXtKW-53" parent="1" style="whiteSpace=wrap;strokeWidth=2;rounded=0;labelBackgroundColor=none;" value="Task Worker" vertex="1">
-          <mxGeometry height="50" width="146" x="1518" y="605" as="geometry" />
+        <mxCell id="ZxT0anLmeUN1lRlBXtKW-53" parent="1" style="whiteSpace=wrap;strokeWidth=2;rounded=0;labelBackgroundColor=none;align=left;" value="Task Worker[n]:&#xa;    -Fetch file from Blob Storage&#xa;    -Validate checksum&#xa;    -Upload to destination&#xa;    -Retry with backoff&#xa;    -Update task status&#xa;    -Emit audit event" vertex="1">
+          <mxGeometry height="110" width="196.5" x="1384.5" y="579" as="geometry" />
         </mxCell>
         <mxCell id="kZjGEyZ31KSyDfQOjVAd-7" edge="1" parent="1" source="kZjGEyZ31KSyDfQOjVAd-6" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=12;startSize=8;endSize=8;" target="LGeiLnGPZ_kJypGg9XhN-20" value="">
           <mxGeometry relative="1" as="geometry" />
