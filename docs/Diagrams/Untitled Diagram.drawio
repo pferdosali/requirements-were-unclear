@@ -64,14 +64,14 @@
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="tPvMw2njpGqdJi2HAjV1-17" edge="1" parent="1" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=12;startSize=8;endSize=8;dashed=1;dashPattern=8 4 1 4;" value="3.3">
+        <mxCell id="tPvMw2njpGqdJi2HAjV1-17" edge="1" parent="1" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;fontSize=12;startSize=8;endSize=8;dashed=1;dashPattern=8 4 1 4;startArrow=classic;startFill=1;" value="3.3">
           <mxGeometry relative="1" x="-0.6344" y="-13" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="851" y="-340" />
+              <mxPoint x="1160" y="-140" />
             </Array>
-            <mxPoint x="874.7118320610687" y="157" as="sourcePoint" />
-            <mxPoint x="1140.5" y="-433" as="targetPoint" />
+            <mxPoint x="853.7118320610687" y="157" as="sourcePoint" />
+            <mxPoint x="1240.5" y="-406" as="targetPoint" />
           </mxGeometry>
         </mxCell>
         <mxCell id="LGeiLnGPZ_kJypGg9XhN-9" parent="1" style="whiteSpace=wrap;strokeWidth=2;rounded=0;labelBackgroundColor=none;" value="API Gateway" vertex="1">
@@ -131,6 +131,13 @@
         <mxCell id="kZjGEyZ31KSyDfQOjVAd-3" connectable="0" parent="tPvMw2njpGqdJi2HAjV1-19" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;" value="5.1" vertex="1">
           <mxGeometry relative="1" x="0.0872" as="geometry">
             <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="kZjGEyZ31KSyDfQOjVAd-5" edge="1" parent="1" source="LGeiLnGPZ_kJypGg9XhN-20" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=12;startSize=8;endSize=8;dashed=1;dashPattern=8 4 1 4;" target="LGeiLnGPZ_kJypGg9XhN-8">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1010" y="-60" />
+            </Array>
           </mxGeometry>
         </mxCell>
         <mxCell id="LGeiLnGPZ_kJypGg9XhN-20" parent="1" style="whiteSpace=wrap;strokeWidth=2;rounded=0;labelBackgroundColor=none;" value="Key Management Services" vertex="1">
