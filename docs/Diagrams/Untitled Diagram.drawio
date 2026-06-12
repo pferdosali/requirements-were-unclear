@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Overall-Diagram" id="Xauzskn0iYLa3f8TggF1">
-    <mxGraphModel dx="1400" dy="1882" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" background="none" math="0" shadow="0">
+    <mxGraphModel dx="312" dy="1312" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" background="none" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -27,6 +27,16 @@
         </mxCell>
         <mxCell id="LGeiLnGPZ_kJypGg9XhN-6" parent="1" style="whiteSpace=wrap;strokeWidth=2;rounded=0;labelBackgroundColor=none;" value="Clinical Trial User " vertex="1">
           <mxGeometry height="54" width="186" x="100" y="177" as="geometry" />
+        </mxCell>
+        <mxCell id="kZjGEyZ31KSyDfQOjVAd-4" edge="1" parent="1" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=12;startSize=8;endSize=8;dashed=1;dashPattern=8 4 1 4;" value="1.1: Identity Provider">
+          <mxGeometry relative="1" x="0.0321" y="-53" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="701" y="-230" />
+            </Array>
+            <mxPoint x="454.3617511520737" y="177" as="sourcePoint" />
+            <mxPoint x="1140.5" y="-433" as="targetPoint" />
+          </mxGeometry>
         </mxCell>
         <mxCell id="LGeiLnGPZ_kJypGg9XhN-7" parent="1" style="whiteSpace=wrap;strokeWidth=2;rounded=0;labelBackgroundColor=none;" value="Web UI" vertex="1">
           <mxGeometry height="54" width="110" x="382" y="177" as="geometry" />
