@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Overall-Diagram" id="Xauzskn0iYLa3f8TggF1">
-    <mxGraphModel dx="839" dy="1672" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" background="none" math="0" shadow="0">
+    <mxGraphModel dx="704" dy="1579" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" background="none" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -133,7 +133,7 @@
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="kZjGEyZ31KSyDfQOjVAd-5" edge="1" parent="1" source="LGeiLnGPZ_kJypGg9XhN-20" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=12;startSize=8;endSize=8;dashed=1;dashPattern=8 4 1 4;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="LGeiLnGPZ_kJypGg9XhN-4">
+        <mxCell id="kZjGEyZ31KSyDfQOjVAd-5" edge="1" parent="1" source="LGeiLnGPZ_kJypGg9XhN-20" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=12;startSize=8;endSize=8;dashed=1;dashPattern=8 4 1 4;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="LGeiLnGPZ_kJypGg9XhN-4" value="1.3: Existing Platform Permissions">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="1240" y="-100" />
