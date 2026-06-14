@@ -38,10 +38,9 @@ Focus areas:
 - Open questions and assumptions
 
 Deliverable:
-
-```text
-/docs/blueprint.md
-```
+- [ ] [PAS document](https://github.com/pferdosali/requirements-were-unclear/blob/main/docs/DocBridge_Blueprint_PAS_1.md)
+- [ ] [Design Diagram](https://app.eraser.io/workspace/sVskwriHEh502mT8DiIp)
+- [ ] [Low Fidelity UI mockups](https://rem-genius-52349022.figma.site/)
 
 ---
 
