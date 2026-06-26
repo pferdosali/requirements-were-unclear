@@ -10,7 +10,7 @@ Last Updated: 2026-06-25
 | -------------------------------- | ---------------------- | -------------------------------------- |
 | #9 Infrastructure as Code        | ✅ Complete (CDK synth) | Not yet deployed to AWS                |
 | #1 Authentication & User Access  | ✅ Complete             | Mock auth middleware + team resolution |
-| #2 File Upload & S3 Storage      | ✅ Complete             | Presigned URL pattern                  |
+| #2 File Upload & S3 Storage      | ✅ Complete             | Presigned URL pattern, browser→S3 verified |
 | #3 Job and Task Metadata         | ⬜ Todo                 |                                        |
 | #4 Queue-Based Processing        | ⬜ Todo                 |                                        |
 | #5 Worker Execution & Retry      | ⬜ Todo                 |                                        |
@@ -126,6 +126,12 @@ requirements-were-unclear/
 
 5. **S3 client flexibility** — Using `S3_ENDPOINT` env var allows pointing at LocalStack or MinIO for local development without code changes.
 
+6. **Browser file.type can be empty** — Browsers return empty string for `file.type` on unknown extensions (e.g., `.text`, `.log`, `.dat`). API validation must not reject these — default to `application/octet-stream`.
+
+7. **S3 presigned URLs and browser compatibility** — AWS SDK v3 adds `ServerSideEncryption`, `ContentLength`, metadata headers, and checksum requirements to presigned URLs by default. Browsers can't send custom `x-amz-*` headers on PUT. Solution: remove all optional signed headers, set `requestChecksumCalculation: 'WHEN_REQUIRED'` on the S3 client, and use `unhoistableHeaders` to exclude `content-type` from the signature.
+
+8. **S3 CORS is required for browser uploads** — Even with valid presigned URLs, browsers enforce CORS preflight on cross-origin PUT requests. Must configure `AllowedOrigins`, `AllowedMethods: [PUT]`, and `AllowedHeaders: [*]` on the bucket.
+
 ---
 
 ## Environment & Tooling
@@ -193,6 +199,25 @@ CDK stacks have NOT been deployed. All infrastructure exists only as synthesized
 7. Multi-region strategy — are the two regions both in AWS, or is one external?
 8. File type restrictions — should we limit accepted content types?
 9. Checksum validation — SHA-256 per blueprint. Generate client-side or server-side after upload?
+
+---
+
+## Frontend Integration
+
+- **Source:** https://github.com/pferdosali/Userinterface (Figma-exported React app)
+- **Stack:** Vite + React + Tailwind + Radix UI + shadcn
+- **Status:** Wired to real backend, uploads working end-to-end
+- **Local dev:** `npx vite` on :5173, Vite proxy forwards `/api/*` to backend on :3000
+- **Auth:** Hardcoded `x-user-id: user-1` header (injected in `src/app/api.ts`)
+- **Upload flow:** Presign → XHR PUT to S3 (with progress tracking) → confirm
+- **Key change:** Replaced `simulateJobUpload` with `realJobUpload` in App.tsx
+
+### S3 Bucket (dev)
+
+- **Bucket:** `docbridge-blob-local` (us-east-1)
+- **CORS:** AllowedOrigins `*`, AllowedMethods `PUT/GET/HEAD`
+- **Encryption:** AES256 (S3 default, KMS will be added with full CDK deploy)
+- **Object path pattern:** `uploads/{userId}/{fileId}/{fileName}`
 
 ---
 

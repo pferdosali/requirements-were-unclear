@@ -8,6 +8,8 @@ const PRESIGN_EXPIRY = 900; // 15 minutes
 const s3 = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
   ...(process.env.S3_ENDPOINT && { endpoint: process.env.S3_ENDPOINT, forcePathStyle: true }),
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 });
 
 export interface UploadRequest {
@@ -38,16 +40,12 @@ export async function generatePresignedUpload(
     Bucket: BUCKET_NAME,
     Key: objectKey,
     ContentType: req.contentType,
-    ContentLength: req.fileSizeBytes,
-    ServerSideEncryption: 'aws:kms',
-    Metadata: {
-      'original-name': req.fileName,
-      'user-id': userId,
-      'file-id': fileId,
-    },
   });
 
-  const uploadUrl = await getSignedUrl(s3, command, { expiresIn: PRESIGN_EXPIRY });
+  const uploadUrl = await getSignedUrl(s3, command, {
+    expiresIn: PRESIGN_EXPIRY,
+    unhoistableHeaders: new Set(['content-type']),
+  });
 
   return { fileId, uploadUrl, expiresIn: PRESIGN_EXPIRY, objectKey };
 }

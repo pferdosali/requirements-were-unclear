@@ -19,12 +19,16 @@ uploadRouter.get('/me', async (req: AuthenticatedRequest, res: Response) => {
 uploadRouter.post('/upload/presign', async (req: AuthenticatedRequest, res: Response) => {
   const { fileName, contentType, fileSizeBytes } = req.body as UploadRequest;
 
-  if (!fileName || !contentType || !fileSizeBytes) {
-    res.status(400).json({ error: 'fileName, contentType, and fileSizeBytes are required' });
+  if (!fileName || !fileSizeBytes) {
+    res.status(400).json({ error: 'fileName and fileSizeBytes are required' });
     return;
   }
 
-  const result = await generatePresignedUpload(req.user!.userId, { fileName, contentType, fileSizeBytes });
+  const result = await generatePresignedUpload(req.user!.userId, {
+    fileName,
+    contentType: contentType || 'application/octet-stream',
+    fileSizeBytes,
+  });
   res.status(201).json(result);
 });
 
