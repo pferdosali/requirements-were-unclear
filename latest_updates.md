@@ -6,18 +6,18 @@ Last Updated: 2026-06-25
 
 ## Current Status
 
-| Epic | Status | Notes |
-|------|--------|-------|
-| #9 Infrastructure as Code | ✅ Complete (CDK synth) | Not yet deployed to AWS |
-| #1 Authentication & User Access | ✅ Complete | Mock auth middleware + team resolution |
-| #2 File Upload & S3 Storage | ✅ Complete | Presigned URL pattern |
-| #3 Job and Task Metadata | ⬜ Todo | |
-| #4 Queue-Based Processing | ⬜ Todo | |
-| #5 Worker Execution & Retry | ⬜ Todo | |
-| #6 Destination Routing | ⬜ Todo | |
-| #7 Status Tracking UI | ⬜ Todo | |
-| #8 Audit Logging & Observability | ⬜ Todo | |
-| #10 CI/CD and Deployment | ⬜ Todo | |
+| Epic                             | Status                 | Notes                                  |
+| -------------------------------- | ---------------------- | -------------------------------------- |
+| #9 Infrastructure as Code        | ✅ Complete (CDK synth) | Not yet deployed to AWS                |
+| #1 Authentication & User Access  | ✅ Complete             | Mock auth middleware + team resolution |
+| #2 File Upload & S3 Storage      | ✅ Complete             | Presigned URL pattern                  |
+| #3 Job and Task Metadata         | ⬜ Todo                 |                                        |
+| #4 Queue-Based Processing        | ⬜ Todo                 |                                        |
+| #5 Worker Execution & Retry      | ⬜ Todo                 |                                        |
+| #6 Destination Routing           | ⬜ Todo                 |                                        |
+| #7 Status Tracking UI            | ⬜ Todo                 |                                        |
+| #8 Audit Logging & Observability | ⬜ Todo                 |                                        |
+| #10 CI/CD and Deployment         | ⬜ Todo                 |                                        |
 
 ---
 
@@ -141,6 +141,44 @@ requirements-were-unclear/
 | AWS Profile | `dev` |
 | AWS Region | us-east-1 |
 | GitHub CLI | Authenticated |
+
+---
+
+## Current Expenses
+
+### Active Resources (as of 2026-06-25)
+
+| Resource | Status | Monthly Cost |
+|----------|--------|--------------|
+| EC2 (i-060972db9737602b8, t2.small) | Stopped | $0 compute |
+| EBS volume (attached to stopped EC2) | Active | ~$0.80 |
+| **Total current** | | **~$0.80/month** |
+
+CDK stacks have NOT been deployed. All infrastructure exists only as synthesized templates locally.
+
+### Projected Cost After CDK Deploy
+
+| Resource | Monthly Estimate |
+|----------|-----------------|
+| NAT Gateway | ~$32 |
+| RDS PostgreSQL (db.t3.micro, single-AZ) | ~$13 |
+| ALB | ~$16 |
+| ECS Fargate — API (0.25 vCPU / 512MB) | ~$9 |
+| ECS Fargate — Worker (0.25 vCPU / 512MB) | ~$9 |
+| CloudFront | ~$1 |
+| S3 | < $1 |
+| SQS / SNS | < $1 (free tier) |
+| DynamoDB | < $1 (pay per request) |
+| KMS | ~$1 |
+| Cognito | $0 (free tier: 50k MAUs) |
+| **Total projected** | **~$82/month** |
+
+### Cost Optimization Options (not yet applied)
+
+- Replace NAT Gateway ($32/mo) with NAT instance (t3.nano, ~$3/mo) — saves ~$29
+- Use VPC endpoints for S3/DynamoDB to reduce NAT data transfer
+- Stop Fargate services when not in use (scale to 0)
+- Use RDS stop/start for dev (auto-restarts after 7 days)
 
 ---
 
