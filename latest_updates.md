@@ -1,6 +1,6 @@
 # DocBridge — Latest Updates
 
-Last Updated: 2026-06-25
+Last Updated: 2026-07-09
 
 ---
 
@@ -11,7 +11,7 @@ Last Updated: 2026-06-25
 | #9 Infrastructure as Code        | ✅ Complete (CDK synth) | Not yet deployed to AWS                |
 | #1 Authentication & User Access  | ✅ Complete             | Mock auth middleware + team resolution |
 | #2 File Upload & S3 Storage      | ✅ Complete             | Presigned URL pattern, browser→S3 verified |
-| #3 Job and Task Metadata         | ⬜ Todo                 |                                        |
+| #3 Job and Task Metadata         | ✅ Complete             | PostgreSQL schema, CRUD APIs, ownership checks |
 | #4 Queue-Based Processing        | ⬜ Todo                 |                                        |
 | #5 Worker Execution & Retry      | ⬜ Todo                 |                                        |
 | #6 Destination Routing           | ⬜ Todo                 |                                        |
@@ -48,6 +48,12 @@ Last Updated: 2026-06-25
 | /api/me | GET | Yes | Return authenticated user + team info |
 | /api/upload/presign | POST | Yes | Get presigned S3 URL for file upload |
 | /api/upload/confirm | POST | Yes | Confirm file exists in S3 after upload |
+| /api/jobs | POST | Yes | Create a new upload job (with optional inline tasks) |
+| /api/jobs | GET | Yes | List all jobs for the authenticated user |
+| /api/jobs/:jobId | GET | Yes | Get a single job (ownership enforced) |
+| /api/jobs/:jobId/tasks | GET | Yes | List all tasks for a job |
+| /api/jobs/:jobId/tasks | POST | Yes | Add tasks to an existing job |
+| /api/tasks/:taskId | GET | Yes | Get a single task (ownership via parent job) |
 
 ### Auth Mechanism (Dev/Mock)
 
@@ -89,11 +95,18 @@ requirements-were-unclear/
 │       │   ├── middleware/auth.ts
 │       │   ├── routes/health.ts
 │       │   ├── routes/upload.ts
+│       │   ├── routes/jobs.ts
 │       │   ├── services/team-service.ts
-│       │   └── services/upload-service.ts
+│       │   ├── services/upload-service.ts
+│       │   ├── services/job-service.ts
+│       │   ├── services/task-service.ts
+│       │   └── db/
+│       │       ├── pool.ts
+│       │       └── migrations/001_create_jobs_and_tasks.sql
 │       └── tests/
 │           ├── auth.test.ts
-│           └── upload.test.ts
+│           ├── upload.test.ts
+│           └── jobs.test.ts
 ├── deployment/
 └── latest_updates.md
 ```
@@ -143,6 +156,7 @@ requirements-were-unclear/
 | TypeScript | 5.7.3 |
 | Express | 4.21.2 |
 | AWS SDK (S3) | 3.750.0 |
+| pg (PostgreSQL client) | 8.13.1 |
 | Jest | 29.7.0 |
 | AWS Profile | `dev` |
 | AWS Region | us-east-1 |
@@ -223,6 +237,6 @@ CDK stacks have NOT been deployed. All infrastructure exists only as synthesized
 
 ## Next Steps
 
-- Epic #3: Job and Task Metadata — PostgreSQL schema, CRUD APIs for jobs/tasks
 - Epic #4: Queue-Based Processing — SQS integration, job submission flow
 - Epic #5: Worker Execution & Retry — consume tasks, upload to destinations
+- Epic #6: Destination Routing — route files to correct regional endpoints
