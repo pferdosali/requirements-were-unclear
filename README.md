@@ -38,9 +38,9 @@ Focus areas:
 - Open questions and assumptions
 
 Deliverable:
-- [ ] [PAS document](https://github.com/pferdosali/requirements-were-unclear/blob/main/docs/DocBridge_Blueprint_PAS_1.md)
-- [ ] [Design Diagram](https://app.eraser.io/workspace/sVskwriHEh502mT8DiIp)
-- [ ] [Low Fidelity UI mockups](https://rem-genius-52349022.figma.site/)
+- [x] [PAS document](https://github.com/pferdosali/requirements-were-unclear/blob/main/docs/DocBridge_Blueprint_PAS_1.md)
+- [x] [Design Diagram](https://app.eraser.io/workspace/sVskwriHEh502mT8DiIp)
+- [x] [Low Fidelity UI mockups](https://rem-genius-52349022.figma.site/)
 
 ---
 
@@ -130,8 +130,25 @@ A document upload orchestration platform that enables users to upload files once
 Current Status:
 
 ```text
-Stage 1 - Blueprint
+Stage 3 - Implementation
 ```
+
+Progress:
+
+| Epic | Status |
+|------|--------|
+| #9 Infrastructure as Code | ✅ Complete (CDK synth, not deployed) |
+| #1 Authentication & User Access | ✅ Complete |
+| #2 File Upload & S3 Storage | ✅ Complete |
+| #3 Job and Task Metadata | ✅ Complete |
+| #4 Queue-Based Processing | ⬜ Todo |
+| #5 Worker Execution & Retry | ⬜ Todo |
+| #6 Destination Routing | ⬜ Todo |
+| #7 Status Tracking UI | ⬜ Todo |
+| #8 Audit Logging & Observability | ⬜ Todo |
+| #10 CI/CD and Deployment | ⬜ Todo |
+
+Stack: TypeScript, Express, PostgreSQL, AWS CDK, S3, SQS, ECS Fargate, React
 
 ---
 
