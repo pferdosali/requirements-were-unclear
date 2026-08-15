@@ -1,6 +1,9 @@
 import { TaskMessage } from '../types/queue-messages';
 import { updateTaskStatus, incrementRetryCount, getTaskById } from '../services/task-service';
 import { recalculateJobStatus } from '../services/job-service';
+import { resolveDestination } from '../services/routing-service';
+import { deliverFile } from '../services/delivery-service';
+import { resolveUserTeam } from '../services/team-service';
 import { WorkerConfig, calculateBackoff } from './config';
 
 export interface ProcessResult {
@@ -77,29 +80,41 @@ async function handleTaskFailure(
 /**
  * Deliver file to the target destination.
  *
- * Currently simulated — in production this would:
- * 1. Download file from S3 using message.fileId
+ * 1. Resolve user's tenant from team service
  * 2. Look up destination config from DynamoDB routing table
- * 3. POST/PUT file to destination API endpoint
- * 4. Verify delivery with checksum if provided
- *
- * For now: simulates a network call with random failure for testing.
+ * 3. Download file from S3 and POST to destination endpoint
+ * 4. Verify checksum if provided
  */
 async function deliverToDestination(message: TaskMessage): Promise<void> {
-  // Simulate network latency (50-200ms)
-  const latency = 50 + Math.random() * 150;
-  await new Promise((resolve) => setTimeout(resolve, latency));
+  // Resolve tenant for routing lookup
+  const team = await resolveUserTeam(message.userId);
+  const tenantId = team.teamId;
 
-  // Simulate ~10% failure rate for testing retry logic
-  if (Math.random() < 0.1) {
-    throw new Error(`Destination ${message.destinationId} temporarily unavailable`);
+  // Look up destination endpoint config
+  const destination = await resolveDestination(message.destinationId, tenantId);
+  if (!destination) {
+    throw new Error(
+      `No routing config found for destination=${message.destinationId}, tenant=${tenantId}`,
+    );
   }
 
-  console.log(`Task ${message.taskId} delivered to ${message.destinationId}`);
+  // Build the S3 object key from the fileId
+  // Object key pattern: uploads/{userId}/{fileId}/{fileName}
+  // Since we only have fileId in the message, we need to construct the path
+  const objectKey = message.fileId;
+
+  // Deliver file to destination
+  const result = await deliverFile(objectKey, destination, message.checksum);
+
+  if (!result.success) {
+    throw new Error(result.error || `Delivery failed with status ${result.statusCode}`);
+  }
+
+  console.log(
+    `Task ${message.taskId} delivered to ${destination.destinationName} ` +
+    `(${result.bytesSent} bytes, checksum=${result.checksumValid ?? 'not verified'})`,
+  );
 }
 
-/**
- * Exportable delivery function for dependency injection in tests.
- * In production, replace the simulated deliverToDestination with a real implementation.
- */
+// Export processTask for testing
 export { deliverToDestination };
