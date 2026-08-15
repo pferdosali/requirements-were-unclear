@@ -168,9 +168,9 @@ Progress:
 | CI Pipeline | ✅ Complete (GitHub Actions) |
 | #4 Queue-Based Processing | ✅ Complete |
 | #5 Worker Execution & Retry | ✅ Complete |
-| #6 Destination Routing | 🔜 Next |
-| #7 Status Tracking UI | ⬜ Todo |
-| #8 Audit Logging & Observability | ⬜ Todo |
+| #6 Destination Routing | ✅ Complete |
+| #7 Status Tracking UI | ✅ Complete |
+| #8 Audit Logging & Observability | 🔜 Next |
 | #10 CI/CD and Deployment | ⬜ Todo |
 
 Stack: TypeScript, Express, PostgreSQL, AWS CDK, S3, SQS, ECS Fargate, React
@@ -188,14 +188,14 @@ The project uses GitHub Actions for continuous integration:
 
 ---
 
-### Next Up: Epic #6 — Destination Routing
+### Next Up: Epic #8 — Audit Logging & Observability
 
-Route files to correct regional endpoints:
+Structured logging and monitoring for the full pipeline:
 
-1. Look up destination config from DynamoDB routing table
-2. Download file from S3
-3. Deliver to destination API endpoint
-4. Verify delivery with checksum
+1. Structured JSON logs across API and worker
+2. Request tracing with correlation IDs
+3. CloudWatch metrics and alarms
+4. Operational dashboards
 
 ---
 
