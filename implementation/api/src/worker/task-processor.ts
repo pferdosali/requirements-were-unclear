@@ -4,6 +4,9 @@ import { recalculateJobStatus } from '../services/job-service';
 import { resolveDestination } from '../services/routing-service';
 import { deliverFile } from '../services/delivery-service';
 import { resolveUserTeam } from '../services/team-service';
+import { notifyTaskStatus, notifyJobStatus, isUserListening } from '../ws/status-notifier';
+import { listTasksByJob } from '../services/task-service';
+import { getJobById } from '../services/job-service';
 import { WorkerConfig, calculateBackoff } from './config';
 
 export interface ProcessResult {
@@ -38,10 +41,13 @@ export async function processTask(message: TaskMessage, config: WorkerConfig): P
     await updateTaskStatus(taskId, 'completed');
     await recalculateJobStatus(jobId);
 
+    // Push real-time status to connected client
+    await pushStatusUpdate(message.userId, jobId, taskId, 'completed');
+
     return { success: true, taskId, action: 'completed' };
   } catch (err) {
     const error = err instanceof Error ? err.message : 'Unknown error';
-    return await handleTaskFailure(taskId, jobId, config, error);
+    return await handleTaskFailure(message.userId, taskId, jobId, config, error);
   }
 }
 
@@ -50,6 +56,7 @@ export async function processTask(message: TaskMessage, config: WorkerConfig): P
  * Increments retry count and decides whether to retry or permanently fail.
  */
 async function handleTaskFailure(
+  userId: string,
   taskId: string,
   jobId: string,
   config: WorkerConfig,
@@ -65,6 +72,10 @@ async function handleTaskFailure(
     // Max retries exhausted — permanently fail
     await updateTaskStatus(taskId, 'failed');
     await recalculateJobStatus(jobId);
+
+    // Push failure notification
+    await pushStatusUpdate(userId, jobId, taskId, 'failed', error);
+
     console.error(`Task ${taskId} permanently failed after ${task.retry_count} retries: ${error}`);
     return { success: false, taskId, action: 'failed', error };
   }
@@ -72,6 +83,16 @@ async function handleTaskFailure(
   // Will be retried — revert status to pending for next attempt
   await updateTaskStatus(taskId, 'pending');
   const backoff = calculateBackoff(task.retry_count, config);
+
+  // Push retry notification
+  notifyTaskStatus(userId, {
+    jobId,
+    taskId,
+    status: 'retrying',
+    retryCount: task.retry_count,
+    error,
+  });
+
   console.warn(`Task ${taskId} failed (attempt ${task.retry_count}/${config.maxRetries}), retrying in ${Math.round(backoff)}ms: ${error}`);
 
   return { success: false, taskId, action: 'retrying', error };
@@ -118,3 +139,45 @@ async function deliverToDestination(message: TaskMessage): Promise<void> {
 
 // Export processTask for testing
 export { deliverToDestination };
+
+/**
+ * Push real-time status updates to the connected user via WebSocket.
+ * Sends both task-level and job-level status events.
+ * Silently skips if user is not connected — status is still in DB.
+ */
+async function pushStatusUpdate(
+  userId: string,
+  jobId: string,
+  taskId: string,
+  status: 'completed' | 'failed',
+  error?: string,
+): Promise<void> {
+  try {
+    if (!isUserListening(userId)) return;
+
+    // Push task status
+    notifyTaskStatus(userId, { jobId, taskId, status, error });
+
+    // Fetch updated job to push job-level summary
+    const job = await getJobById(jobId);
+    if (!job) return;
+
+    const tasks = await listTasksByJob(jobId);
+    const summary = {
+      total: tasks.length,
+      completed: tasks.filter((t) => t.status === 'completed').length,
+      failed: tasks.filter((t) => t.status === 'failed').length,
+      pending: tasks.filter((t) => t.status === 'pending').length,
+      processing: tasks.filter((t) => t.status === 'processing').length,
+    };
+
+    notifyJobStatus(userId, {
+      jobId,
+      status: job.status,
+      tasksSummary: summary,
+    });
+  } catch (err) {
+    // Never let notification failure break the processing pipeline
+    console.warn('Failed to push status notification:', err);
+  }
+}
