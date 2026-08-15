@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  api:
+    name: API - Build & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: implementation/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: implementation/api/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile TypeScript
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test -- --ci --coverage
+
+  infra:
+    name: Infra - CDK Validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: implementation/infra
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: implementation/infra/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile TypeScript
+        run: npx tsc --noEmit
+
+      - name: CDK Synth
+        run: npx cdk synth --quiet
