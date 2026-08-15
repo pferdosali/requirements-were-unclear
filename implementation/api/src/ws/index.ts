@@ -1,3 +1,4 @@
+import { logger } from '../logging';
 import { Server as HttpServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { connectionManager } from './connection-manager';
@@ -28,7 +29,7 @@ export function setupWebSocket(server: HttpServer): WebSocketServer {
     });
   });
 
-  console.log('WebSocket server initialized on /ws');
+  logger.info('WebSocket server initialized', { path: '/ws' });
   return wss;
 }
 

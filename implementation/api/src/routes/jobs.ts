@@ -4,6 +4,8 @@ import { createJob, getJobById, listJobsByUser, updateJobStatus } from '../servi
 import { createTask, createTasksBatch, listTasksByJob, getTaskById } from '../services/task-service';
 import { publishTaskMessages, publishJobSubmitted } from '../services/queue-service';
 import { TaskMessage, JobSubmittedMessage } from '../types/queue-messages';
+import { logger, auditLog } from '../logging';
+import { RequestWithLogger } from '../logging/correlation';
 
 export const jobsRouter = Router();
 
@@ -30,9 +32,10 @@ jobsRouter.post('/jobs', async (req: AuthenticatedRequest, res: Response) => {
       createdTasks = await createTasksBatch(taskInputs);
     }
 
+    auditLog('JOB_CREATED', { jobId: job.job_id, userId, taskCount: createdTasks.length });
     res.status(201).json({ job, tasks: createdTasks });
   } catch (err) {
-    console.error('Error creating job:', err);
+    logger.error('Error creating job', { error: (err as Error).message });
     res.status(500).json({ error: 'Failed to create job' });
   }
 });
@@ -47,7 +50,7 @@ jobsRouter.get('/jobs', async (req: AuthenticatedRequest, res: Response) => {
     const jobs = await listJobsByUser(userId);
     res.json({ jobs });
   } catch (err) {
-    console.error('Error listing jobs:', err);
+    logger.error('Error listing jobs', { error: (err as Error).message });
     res.status(500).json({ error: 'Failed to list jobs' });
   }
 });
@@ -69,7 +72,7 @@ jobsRouter.get('/jobs/:jobId', async (req: AuthenticatedRequest, res: Response) 
     }
     res.json({ job });
   } catch (err) {
-    console.error('Error getting job:', err);
+    logger.error('Error getting job', { error: (err as Error).message });
     res.status(500).json({ error: 'Failed to get job' });
   }
 });
@@ -92,7 +95,7 @@ jobsRouter.get('/jobs/:jobId/tasks', async (req: AuthenticatedRequest, res: Resp
     const tasks = await listTasksByJob(req.params.jobId);
     res.json({ tasks });
   } catch (err) {
-    console.error('Error listing tasks:', err);
+    logger.error('Error listing tasks', { error: (err as Error).message });
     res.status(500).json({ error: 'Failed to list tasks' });
   }
 });
@@ -129,7 +132,7 @@ jobsRouter.post('/jobs/:jobId/tasks', async (req: AuthenticatedRequest, res: Res
     const createdTasks = await createTasksBatch(taskInputs);
     res.status(201).json({ tasks: createdTasks });
   } catch (err) {
-    console.error('Error creating tasks:', err);
+    logger.error('Error creating tasks', { error: (err as Error).message });
     res.status(500).json({ error: 'Failed to create tasks' });
   }
 });
@@ -196,6 +199,8 @@ jobsRouter.post('/jobs/:jobId/submit', async (req: AuthenticatedRequest, res: Re
     // Update job status to processing
     const updatedJob = await updateJobStatus(job.job_id, 'processing');
 
+    auditLog('JOB_SUBMITTED', { jobId: job.job_id, userId: job.user_id, taskCount: tasks.length });
+
     res.json({
       job: updatedJob,
       submitted: {
@@ -204,7 +209,7 @@ jobsRouter.post('/jobs/:jobId/submit', async (req: AuthenticatedRequest, res: Re
       },
     });
   } catch (err) {
-    console.error('Error submitting job:', err);
+    logger.error('Error submitting job', { error: (err as Error).message });
     res.status(500).json({ error: 'Failed to submit job for processing' });
   }
 });
@@ -228,7 +233,7 @@ jobsRouter.get('/tasks/:taskId', async (req: AuthenticatedRequest, res: Response
     }
     res.json({ task });
   } catch (err) {
-    console.error('Error getting task:', err);
+    logger.error('Error getting task', { error: (err as Error).message });
     res.status(500).json({ error: 'Failed to get task' });
   }
 });
