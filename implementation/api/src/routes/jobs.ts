@@ -1,7 +1,9 @@
 import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { createJob, getJobById, listJobsByUser } from '../services/job-service';
+import { createJob, getJobById, listJobsByUser, updateJobStatus } from '../services/job-service';
 import { createTask, createTasksBatch, listTasksByJob, getTaskById } from '../services/task-service';
+import { publishTaskMessages, publishJobSubmitted } from '../services/queue-service';
+import { TaskMessage, JobSubmittedMessage } from '../types/queue-messages';
 
 export const jobsRouter = Router();
 
@@ -129,6 +131,81 @@ jobsRouter.post('/jobs/:jobId/tasks', async (req: AuthenticatedRequest, res: Res
   } catch (err) {
     console.error('Error creating tasks:', err);
     res.status(500).json({ error: 'Failed to create tasks' });
+  }
+});
+
+/**
+ * POST /api/jobs/:jobId/submit
+ * Submit a job for async processing. Publishes task messages to SQS
+ * and transitions job status to 'processing'.
+ *
+ * Preconditions:
+ * - Job must exist and be owned by the authenticated user
+ * - Job must have at least one task
+ * - Job must be in 'pending' status
+ */
+jobsRouter.post('/jobs/:jobId/submit', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const job = await getJobById(req.params.jobId);
+    if (!job) {
+      res.status(404).json({ error: 'Job not found' });
+      return;
+    }
+    if (job.user_id !== req.user!.userId) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+    if (job.status !== 'pending') {
+      res.status(409).json({ error: `Job cannot be submitted: current status is '${job.status}'` });
+      return;
+    }
+
+    const tasks = await listTasksByJob(job.job_id);
+    if (tasks.length === 0) {
+      res.status(400).json({ error: 'Job has no tasks to process' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    // Build per-task messages for the Task Queue
+    const taskMessages: TaskMessage[] = tasks.map((task) => ({
+      messageType: 'PROCESS_TASK' as const,
+      taskId: task.task_id,
+      jobId: job.job_id,
+      fileId: task.file_id,
+      destinationId: task.destination_id,
+      userId: job.user_id,
+      checksum: task.checksum,
+      submittedAt: now,
+    }));
+
+    // Publish task messages to SQS
+    await publishTaskMessages(taskMessages);
+
+    // Publish job-level notification
+    const jobMessage: JobSubmittedMessage = {
+      messageType: 'JOB_SUBMITTED',
+      jobId: job.job_id,
+      userId: job.user_id,
+      taskCount: tasks.length,
+      submittedAt: now,
+    };
+    await publishJobSubmitted(jobMessage);
+
+    // Update job status to processing
+    const updatedJob = await updateJobStatus(job.job_id, 'processing');
+
+    res.json({
+      job: updatedJob,
+      submitted: {
+        taskCount: tasks.length,
+        submittedAt: now,
+      },
+    });
+  } catch (err) {
+    console.error('Error submitting job:', err);
+    res.status(500).json({ error: 'Failed to submit job for processing' });
   }
 });
 
