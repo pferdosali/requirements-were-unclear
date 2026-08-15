@@ -170,8 +170,8 @@ Progress:
 | #5 Worker Execution & Retry | ✅ Complete |
 | #6 Destination Routing | ✅ Complete |
 | #7 Status Tracking UI | ✅ Complete |
-| #8 Audit Logging & Observability | 🔜 Next |
-| #10 CI/CD and Deployment | ⬜ Todo |
+| #8 Audit Logging & Observability | ✅ Complete |
+| #10 CI/CD and Deployment | 🔜 Next |
 
 Stack: TypeScript, Express, PostgreSQL, AWS CDK, S3, SQS, ECS Fargate, React
 
@@ -188,14 +188,14 @@ The project uses GitHub Actions for continuous integration:
 
 ---
 
-### Next Up: Epic #8 — Audit Logging & Observability
+### Next Up: Epic #10 — CI/CD and Deployment
 
-Structured logging and monitoring for the full pipeline:
+Deploy the system to AWS and automate the pipeline:
 
-1. Structured JSON logs across API and worker
-2. Request tracing with correlation IDs
-3. CloudWatch metrics and alarms
-4. Operational dashboards
+1. CDK deploy to dev environment
+2. GitHub Actions CD (deploy on merge to main)
+3. Docker image build + ECR push
+4. Operational readiness
 
 ---
 
