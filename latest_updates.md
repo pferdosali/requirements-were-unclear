@@ -224,7 +224,7 @@ CDK stacks have NOT been deployed. All infrastructure exists only as synthesized
 ## Open Questions
 
 1. Maximum supported file size for uploads? (Presigned URLs support up to 5GB per PUT)
-2. Destination API rate limits — how should we simulate external platforms?
+2. ~~Destination API rate limits — how should we simulate external platforms?~~ **Answered:** Created mock destination Lambda with CloudWatch logging. Supports `?simulate_failure=true` query param for retry testing.
 3. Should the worker be a separate Docker image or share the API image?
 4. Virus scanning requirement — needed for P0?
 5. Data retention policy — permanent per blueprint, but any cleanup for dev?
@@ -232,6 +232,19 @@ CDK stacks have NOT been deployed. All infrastructure exists only as synthesized
 7. Multi-region strategy — are the two regions both in AWS, or is one external?
 8. File type restrictions — should we limit accepted content types?
 9. Checksum validation — SHA-256 per blueprint. Generate client-side or server-side after upload?
+10. **Streaming vs Memory for file delivery — what's the tradeoff?**
+
+    | Approach | Pros | Cons |
+    |----------|------|------|
+    | **Streaming** (pipe S3 → HTTP) | Constant memory, handles multi-GB files, faster TTFB | Can't retry mid-stream, can't verify checksum before send, complex error handling |
+    | **Memory buffer** (download → verify → POST) | Checksum before delivery, simple retry, full error context | Memory-bound (512MB Fargate), slower for large files |
+
+    **Decision:** Memory buffer with 100MB size guard. Rationale:
+    - Checksum verification before delivery is a system reliability guarantee
+    - Retry logic is simpler when you have the full payload
+    - 100MB covers 99%+ of clinical documents
+    - Streaming can be added later for large file support (images, videos)
+    - Fargate memory can be scaled to 4GB if needed (cost: ~$36/mo vs $9/mo)
 
 ---
 

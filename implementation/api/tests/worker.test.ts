@@ -13,21 +13,41 @@ jest.mock('../src/services/job-service', () => ({
   recalculateJobStatus: jest.fn().mockResolvedValue(null),
 }));
 
-// Mock the delivery function to control test outcomes
-jest.mock('../src/worker/task-processor', () => {
-  const actual = jest.requireActual('../src/worker/task-processor');
-  return {
-    ...actual,
-    // We'll override deliverToDestination behavior via the task-processor module internals
-  };
-});
+// Mock the routing and delivery services
+jest.mock('../src/services/routing-service', () => ({
+  resolveDestination: jest.fn().mockResolvedValue({
+    endpointUrl: 'https://mock-dest.example.com/upload',
+    authType: 'bearer',
+    authToken: 'test-token',
+    destinationName: 'Mock Destination',
+  }),
+}));
+
+jest.mock('../src/services/delivery-service', () => ({
+  deliverFile: jest.fn().mockResolvedValue({
+    success: true,
+    statusCode: 200,
+    bytesSent: 1024,
+    checksumValid: true,
+  }),
+}));
+
+jest.mock('../src/services/team-service', () => ({
+  resolveUserTeam: jest.fn().mockResolvedValue({
+    teamId: 'team-a',
+    name: 'US Clinical Ops',
+    region: 'region-a',
+  }),
+}));
 
 import { updateTaskStatus, incrementRetryCount } from '../src/services/task-service';
 import { recalculateJobStatus } from '../src/services/job-service';
+import { deliverFile } from '../src/services/delivery-service';
 
 const mockUpdateTaskStatus = updateTaskStatus as jest.MockedFunction<typeof updateTaskStatus>;
 const mockIncrementRetryCount = incrementRetryCount as jest.MockedFunction<typeof incrementRetryCount>;
 const mockRecalculateJobStatus = recalculateJobStatus as jest.MockedFunction<typeof recalculateJobStatus>;
+const mockDeliverFile = deliverFile as jest.MockedFunction<typeof deliverFile>;
 
 const testConfig: WorkerConfig = {
   ...defaultWorkerConfig,
@@ -56,7 +76,6 @@ describe('Worker Config', () => {
     });
 
     it('increases with retry attempt', () => {
-      // Run multiple times to account for jitter
       const attempt0Values: number[] = [];
       const attempt3Values: number[] = [];
 
@@ -82,7 +101,6 @@ describe('Worker Config', () => {
         values.push(calculateBackoff(0, { backoffBaseMs: 1000, backoffMaxMs: 30000 }));
       }
       const avg = values.reduce((a, b) => a + b) / values.length;
-      // First attempt: base * 2^0 + jitter = 1000 + random(0-1000), avg ~1500
       expect(avg).toBeGreaterThan(1000);
       expect(avg).toBeLessThan(2000);
     });
@@ -92,82 +110,57 @@ describe('Worker Config', () => {
 describe('Task Processor', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Default: delivery succeeds
+    mockDeliverFile.mockResolvedValue({
+      success: true,
+      statusCode: 200,
+      bytesSent: 1024,
+      checksumValid: true,
+    });
   });
 
   describe('processTask — successful delivery', () => {
     it('marks task as completed on success', async () => {
-      // processTask calls deliverToDestination internally.
-      // Since it's simulated with 10% failure, we'll mock the DB to test the success path.
-      // The actual delivery is non-deterministic, so we test the DB interaction pattern.
-
-      // Mock incrementRetryCount to NOT be called (success path)
       mockUpdateTaskStatus.mockResolvedValue(null);
       mockRecalculateJobStatus.mockResolvedValue(null);
 
-      // Run multiple times — at least one should succeed given 90% success rate
-      let successResult: ProcessResult | null = null;
-      for (let i = 0; i < 20; i++) {
-        jest.clearAllMocks();
-        mockUpdateTaskStatus.mockResolvedValue(null);
-        mockRecalculateJobStatus.mockResolvedValue(null);
-        mockIncrementRetryCount.mockResolvedValue({
-          task_id: testMessage.taskId,
-          job_id: testMessage.jobId,
-          file_id: testMessage.fileId,
-          destination_id: testMessage.destinationId,
-          status: 'pending' as const,
-          retry_count: 1,
-          checksum: testMessage.checksum,
-          created_at: new Date(),
-          updated_at: new Date(),
-        });
+      const result = await processTask(testMessage, testConfig);
 
-        const result = await processTask(testMessage, testConfig);
-        if (result.action === 'completed') {
-          successResult = result;
-          break;
-        }
-      }
-
-      expect(successResult).not.toBeNull();
-      expect(successResult!.success).toBe(true);
-      expect(successResult!.action).toBe('completed');
-      expect(successResult!.taskId).toBe('task-001');
+      expect(result.success).toBe(true);
+      expect(result.action).toBe('completed');
+      expect(result.taskId).toBe('task-001');
     });
 
-    it('calls updateTaskStatus with processing then completed on success', async () => {
+    it('calls updateTaskStatus with processing then completed', async () => {
       mockUpdateTaskStatus.mockResolvedValue(null);
       mockRecalculateJobStatus.mockResolvedValue(null);
 
-      // Keep trying until we get a success
-      let succeeded = false;
-      for (let i = 0; i < 30; i++) {
-        jest.clearAllMocks();
-        mockUpdateTaskStatus.mockResolvedValue(null);
-        mockRecalculateJobStatus.mockResolvedValue(null);
-        mockIncrementRetryCount.mockResolvedValue({
-          task_id: 'task-001', job_id: 'job-001', file_id: 'file-001',
-          destination_id: 'dest-region-a', status: 'pending' as const,
-          retry_count: 1, checksum: 'sha256-abc',
-          created_at: new Date(), updated_at: new Date(),
-        });
+      await processTask(testMessage, testConfig);
 
-        const result = await processTask(testMessage, testConfig);
-        if (result.action === 'completed') {
-          // Should have called: processing, then completed
-          expect(mockUpdateTaskStatus).toHaveBeenCalledWith('task-001', 'processing');
-          expect(mockUpdateTaskStatus).toHaveBeenCalledWith('task-001', 'completed');
-          expect(mockRecalculateJobStatus).toHaveBeenCalledWith('job-001');
-          succeeded = true;
-          break;
-        }
-      }
-      expect(succeeded).toBe(true);
+      expect(mockUpdateTaskStatus).toHaveBeenCalledWith('task-001', 'processing');
+      expect(mockUpdateTaskStatus).toHaveBeenCalledWith('task-001', 'completed');
+      expect(mockRecalculateJobStatus).toHaveBeenCalledWith('job-001');
+    });
+
+    it('recalculates job status after completion', async () => {
+      mockUpdateTaskStatus.mockResolvedValue(null);
+      mockRecalculateJobStatus.mockResolvedValue(null);
+
+      await processTask(testMessage, testConfig);
+
+      expect(mockRecalculateJobStatus).toHaveBeenCalledWith('job-001');
     });
   });
 
   describe('processTask — failure handling', () => {
     it('retries when under max retries', async () => {
+      // Make delivery fail
+      mockDeliverFile.mockResolvedValueOnce({
+        success: false,
+        statusCode: 503,
+        error: 'Service unavailable',
+      });
+
       mockUpdateTaskStatus.mockResolvedValue(null);
       mockIncrementRetryCount.mockResolvedValue({
         task_id: 'task-001', job_id: 'job-001', file_id: 'file-001',
@@ -177,32 +170,23 @@ describe('Task Processor', () => {
         created_at: new Date(), updated_at: new Date(),
       });
 
-      // Keep trying until we get a failure (10% chance per attempt)
-      let retryResult: ProcessResult | null = null;
-      for (let i = 0; i < 50; i++) {
-        jest.clearAllMocks();
-        mockUpdateTaskStatus.mockResolvedValue(null);
-        mockIncrementRetryCount.mockResolvedValue({
-          task_id: 'task-001', job_id: 'job-001', file_id: 'file-001',
-          destination_id: 'dest-region-a', status: 'pending' as const,
-          retry_count: 1, checksum: 'sha256-abc',
-          created_at: new Date(), updated_at: new Date(),
-        });
+      const result = await processTask(testMessage, testConfig);
 
-        const result = await processTask(testMessage, testConfig);
-        if (result.action === 'retrying') {
-          retryResult = result;
-          break;
-        }
-      }
-
-      expect(retryResult).not.toBeNull();
-      expect(retryResult!.success).toBe(false);
-      expect(retryResult!.action).toBe('retrying');
-      expect(retryResult!.error).toBeDefined();
+      expect(result.success).toBe(false);
+      expect(result.action).toBe('retrying');
+      expect(result.error).toBeDefined();
+      // Should revert status to pending for next attempt
+      expect(mockUpdateTaskStatus).toHaveBeenCalledWith('task-001', 'pending');
     });
 
     it('permanently fails when at max retries', async () => {
+      // Make delivery fail
+      mockDeliverFile.mockResolvedValueOnce({
+        success: false,
+        statusCode: 503,
+        error: 'Service unavailable',
+      });
+
       mockUpdateTaskStatus.mockResolvedValue(null);
       mockIncrementRetryCount.mockResolvedValue({
         task_id: 'task-001', job_id: 'job-001', file_id: 'file-001',
@@ -213,40 +197,37 @@ describe('Task Processor', () => {
       });
       mockRecalculateJobStatus.mockResolvedValue(null);
 
-      // Keep trying until delivery fails
-      let failedResult: ProcessResult | null = null;
-      for (let i = 0; i < 50; i++) {
-        jest.clearAllMocks();
-        mockUpdateTaskStatus.mockResolvedValue(null);
-        mockIncrementRetryCount.mockResolvedValue({
-          task_id: 'task-001', job_id: 'job-001', file_id: 'file-001',
-          destination_id: 'dest-region-a', status: 'pending' as const,
-          retry_count: 3, checksum: 'sha256-abc',
-          created_at: new Date(), updated_at: new Date(),
-        });
-        mockRecalculateJobStatus.mockResolvedValue(null);
+      const result = await processTask(testMessage, testConfig);
 
-        const result = await processTask(testMessage, testConfig);
-        if (result.action === 'failed') {
-          failedResult = result;
-          break;
-        }
-      }
-
-      expect(failedResult).not.toBeNull();
-      expect(failedResult!.success).toBe(false);
-      expect(failedResult!.action).toBe('failed');
-      // Should mark as failed and recalculate job
+      expect(result.success).toBe(false);
+      expect(result.action).toBe('failed');
       expect(mockUpdateTaskStatus).toHaveBeenCalledWith('task-001', 'failed');
       expect(mockRecalculateJobStatus).toHaveBeenCalledWith('job-001');
+    });
+
+    it('fails when routing config not found', async () => {
+      // Override routing mock to return null
+      const { resolveDestination } = require('../src/services/routing-service');
+      (resolveDestination as jest.Mock).mockResolvedValueOnce(null);
+
+      mockUpdateTaskStatus.mockResolvedValue(null);
+      mockIncrementRetryCount.mockResolvedValue({
+        task_id: 'task-001', job_id: 'job-001', file_id: 'file-001',
+        destination_id: 'dest-region-a', status: 'pending' as const,
+        retry_count: 1, checksum: 'sha256-abc',
+        created_at: new Date(), updated_at: new Date(),
+      });
+
+      const result = await processTask(testMessage, testConfig);
+
+      expect(result.success).toBe(false);
+      expect(result.action).toBe('retrying');
+      expect(result.error).toContain('No routing config found');
     });
   });
 });
 
 describe('Worker — pollAndProcess', () => {
-  // Testing pollAndProcess requires mocking the SQS client, which is complex.
-  // These tests verify the configuration and message handling logic.
-
   it('defaultWorkerConfig has sensible defaults', () => {
     expect(defaultWorkerConfig.maxMessages).toBe(5);
     expect(defaultWorkerConfig.waitTimeSeconds).toBe(20);
@@ -259,7 +240,6 @@ describe('Worker — pollAndProcess', () => {
   it('worker can be stopped via config.running', () => {
     const config = { ...defaultWorkerConfig };
     config.running = false;
-    // Worker loop condition check
     expect(config.running).toBe(false);
   });
 });

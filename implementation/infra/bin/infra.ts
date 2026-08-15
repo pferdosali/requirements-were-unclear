@@ -8,6 +8,7 @@ import { ComputeStack } from '../lib/compute-stack';
 import { EdgeStack } from '../lib/edge-stack';
 import { AuthStack } from '../lib/auth-stack';
 import { RoutingStack } from '../lib/routing-stack';
+import { MockDestinationStack } from '../lib/mock-destination-stack';
 
 const app = new cdk.App();
 
@@ -49,3 +50,5 @@ new EdgeStack(app, 'DocBridge-Edge', {
   albSg: networking.albSg,
   fargateService: compute.fargateService,
 });
+
+new MockDestinationStack(app, 'DocBridge-MockDestination', { env });

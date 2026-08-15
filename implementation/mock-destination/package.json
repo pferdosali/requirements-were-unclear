@@ -1,0 +1,14 @@
+{
+  "name": "docbridge-mock-destination",
+  "version": "1.0.0",
+  "description": "Mock destination endpoint for DocBridge delivery testing",
+  "main": "handler.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.15.21",
+    "typescript": "^5.7.3"
+  }
+}
