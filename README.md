@@ -123,10 +123,12 @@ requirements-were-unclear/
 │   │   │   ├── app.ts
 │   │   │   ├── server.ts
 │   │   │   ├── middleware/     # Auth (mock → Cognito)
-│   │   │   ├── routes/        # health, upload, jobs
-│   │   │   ├── services/      # team, upload, job, task
+│   │   │   ├── routes/        # health, upload, jobs, submit
+│   │   │   ├── services/      # team, upload, job, task, queue
+│   │   │   ├── worker/        # SQS consumer, task processor, retry
+│   │   │   ├── types/         # Queue message interfaces
 │   │   │   └── db/            # Pool + migrations
-│   │   └── tests/             # Jest (24 tests)
+│   │   └── tests/             # Jest (45 tests)
 │   └── infra/                  # AWS CDK (7 stacks)
 │       ├── bin/infra.ts
 │       └── lib/
@@ -164,9 +166,9 @@ Progress:
 | #2 File Upload & S3 Storage | ✅ Complete |
 | #3 Job and Task Metadata | ✅ Complete |
 | CI Pipeline | ✅ Complete (GitHub Actions) |
-| #4 Queue-Based Processing | 🔜 Next |
-| #5 Worker Execution & Retry | ⬜ Todo |
-| #6 Destination Routing | ⬜ Todo |
+| #4 Queue-Based Processing | ✅ Complete |
+| #5 Worker Execution & Retry | ✅ Complete |
+| #6 Destination Routing | 🔜 Next |
 | #7 Status Tracking UI | ⬜ Todo |
 | #8 Audit Logging & Observability | ⬜ Todo |
 | #10 CI/CD and Deployment | ⬜ Todo |
@@ -186,15 +188,14 @@ The project uses GitHub Actions for continuous integration:
 
 ---
 
-### Next Up: Epic #4 — Queue-Based Processing
+### Next Up: Epic #6 — Destination Routing
 
-Connect job creation to the SQS/SNS messaging layer:
+Route files to correct regional endpoints:
 
-1. Job submission endpoint publishes to SQS Job Queue
-2. SNS fanout distributes per-task messages to Task Queue
-3. Job status transitions `pending` → `processing`
-
-The CDK infrastructure (queues, DLQs, SNS topic) is already defined and validated.
+1. Look up destination config from DynamoDB routing table
+2. Download file from S3
+3. Deliver to destination API endpoint
+4. Verify delivery with checksum
 
 ---
 

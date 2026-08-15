@@ -1,6 +1,6 @@
 # DocBridge — Latest Updates
 
-Last Updated: 2026-07-09
+Last Updated: 2026-08-14
 
 ---
 
@@ -12,9 +12,10 @@ Last Updated: 2026-07-09
 | #1 Authentication & User Access  | ✅ Complete             | Mock auth middleware + team resolution |
 | #2 File Upload & S3 Storage      | ✅ Complete             | Presigned URL pattern, browser→S3 verified |
 | #3 Job and Task Metadata         | ✅ Complete             | PostgreSQL schema, CRUD APIs, ownership checks |
-| #4 Queue-Based Processing        | ⬜ Todo                 |                                        |
-| #5 Worker Execution & Retry      | ⬜ Todo                 |                                        |
-| #6 Destination Routing           | ⬜ Todo                 |                                        |
+| CI Pipeline                      | ✅ Complete             | GitHub Actions: API tests + CDK synth |
+| #4 Queue-Based Processing        | ✅ Complete             | SQS job submission, per-task messages, batch publish |
+| #5 Worker Execution & Retry      | ✅ Complete             | SQS consumer, exponential backoff, job recalculation |
+| #6 Destination Routing           | 🔜 Next                |                                        |
 | #7 Status Tracking UI            | ⬜ Todo                 |                                        |
 | #8 Audit Logging & Observability | ⬜ Todo                 |                                        |
 | #10 CI/CD and Deployment         | ⬜ Todo                 |                                        |
@@ -53,6 +54,7 @@ Last Updated: 2026-07-09
 | /api/jobs/:jobId | GET | Yes | Get a single job (ownership enforced) |
 | /api/jobs/:jobId/tasks | GET | Yes | List all tasks for a job |
 | /api/jobs/:jobId/tasks | POST | Yes | Add tasks to an existing job |
+| /api/jobs/:jobId/submit | POST | Yes | Submit job for async processing (publishes to SQS) |
 | /api/tasks/:taskId | GET | Yes | Get a single task (ownership via parent job) |
 
 ### Auth Mechanism (Dev/Mock)
@@ -100,13 +102,22 @@ requirements-were-unclear/
 │       │   ├── services/upload-service.ts
 │       │   ├── services/job-service.ts
 │       │   ├── services/task-service.ts
+│       │   ├── services/queue-service.ts
+│       │   ├── types/queue-messages.ts
+│       │   ├── worker/
+│       │   │   ├── worker.ts
+│       │   │   ├── task-processor.ts
+│       │   │   ├── config.ts
+│       │   │   └── index.ts
 │       │   └── db/
 │       │       ├── pool.ts
 │       │       └── migrations/001_create_jobs_and_tasks.sql
 │       └── tests/
 │           ├── auth.test.ts
 │           ├── upload.test.ts
-│           └── jobs.test.ts
+│           ├── jobs.test.ts
+│           ├── submit.test.ts
+│           └── worker.test.ts
 ├── deployment/
 └── latest_updates.md
 ```
@@ -144,6 +155,14 @@ requirements-were-unclear/
 7. **S3 presigned URLs and browser compatibility** — AWS SDK v3 adds `ServerSideEncryption`, `ContentLength`, metadata headers, and checksum requirements to presigned URLs by default. Browsers can't send custom `x-amz-*` headers on PUT. Solution: remove all optional signed headers, set `requestChecksumCalculation: 'WHEN_REQUIRED'` on the S3 client, and use `unhoistableHeaders` to exclude `content-type` from the signature.
 
 8. **S3 CORS is required for browser uploads** — Even with valid presigned URLs, browsers enforce CORS preflight on cross-origin PUT requests. Must configure `AllowedOrigins`, `AllowedMethods: [PUT]`, and `AllowedHeaders: [*]` on the bucket.
+
+9. **SQS batch send limit is 10** — `SendMessageBatch` accepts max 10 messages. Must chunk larger payloads. Each entry needs a unique `Id` within the batch.
+
+10. **Explicit submit vs auto-submit** — Chose explicit `/submit` endpoint over auto-queueing on job creation. Users may add tasks incrementally and want control over when processing starts. Prevents partial submissions.
+
+11. **Exponential backoff needs jitter** — Without jitter, retrying consumers create "thundering herd" patterns when they all retry at the same intervals. Adding `Math.random() * base` spreads retries.
+
+12. **SQS visibility timeout for retry backoff** — Instead of implementing application-level delays (sleep/setTimeout), use `ChangeMessageVisibility` to hide the message for the backoff period. SQS handles the timing.
 
 ---
 
@@ -235,8 +254,79 @@ CDK stacks have NOT been deployed. All infrastructure exists only as synthesized
 
 ---
 
+## Queue-Based Processing (Epic #4)
+
+### Submit Flow
+
+1. Client calls `POST /api/jobs/:jobId/submit`
+2. API validates: ownership, status=pending, tasks exist
+3. Publishes per-task `PROCESS_TASK` messages to SQS Task Queue (batched, max 10/call)
+4. Publishes `JOB_SUBMITTED` notification to SQS Job Queue
+5. Updates job status to `processing`
+
+### Queue Message Types
+
+| Type | Queue | Purpose |
+|------|-------|---------|
+| `PROCESS_TASK` | Task Queue | One per task — consumed by worker |
+| `JOB_SUBMITTED` | Job Queue | Audit/tracking notification |
+
+### Environment Variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `TASK_QUEUE_URL` | LocalStack URL | SQS Task Queue endpoint |
+| `JOB_QUEUE_URL` | LocalStack URL | SQS Job Queue endpoint |
+| `SQS_ENDPOINT` | (none) | Override SQS endpoint for local dev |
+
+---
+
+## Worker Execution & Retry (Epic #5)
+
+### Worker Architecture
+
+```
+Task Queue (SQS) → Worker (long-poll) → Task Processor → DB Status Update
+```
+
+### Retry Policy
+
+| Setting | Value |
+|---------|-------|
+| Max retries | 3 |
+| Base backoff | 1000ms |
+| Max backoff | 30000ms |
+| Strategy | Exponential with jitter |
+
+### Message Lifecycle
+
+- **Success:** Delete message → mark task `completed` → recalculate job status
+- **Retry (under max):** Extend visibility (backoff) → increment retry → revert to `pending`
+- **Failed (at max):** Delete message → mark task `failed` → recalculate job status
+
+### Job Status Recalculation
+
+| Condition | Job Status |
+|-----------|-----------|
+| All tasks completed | `completed` |
+| Mix of completed + failed | `partial_success` |
+| All tasks failed | `failed` |
+| Any task processing | `processing` |
+| Otherwise | `pending` |
+
+### Running the Worker
+
+```bash
+npm run dev:worker     # Development (ts-node)
+npm run start:worker   # Production (compiled JS)
+```
+
+Graceful shutdown: send SIGTERM or SIGINT — worker finishes current message then exits.
+
+---
+
 ## Next Steps
 
-- Epic #4: Queue-Based Processing — SQS integration, job submission flow
-- Epic #5: Worker Execution & Retry — consume tasks, upload to destinations
 - Epic #6: Destination Routing — route files to correct regional endpoints
+- Epic #7: Status Tracking UI — WebSocket push for real-time status updates
+- Epic #8: Audit Logging & Observability
