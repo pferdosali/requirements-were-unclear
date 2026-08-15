@@ -1,3 +1,4 @@
+import { logger } from '../logging';
 import {
   SQSClient,
   ReceiveMessageCommand,
@@ -18,20 +19,20 @@ const sqs = new SQSClient({
  * Long-polls the Task Queue, processes messages, and manages lifecycle.
  */
 export async function startWorker(config: WorkerConfig = defaultWorkerConfig): Promise<void> {
-  console.log('Worker starting — polling Task Queue:', config.taskQueueUrl);
-  console.log(`Config: maxRetries=${config.maxRetries}, maxMessages=${config.maxMessages}, waitTime=${config.waitTimeSeconds}s`);
+  logger.info("Worker starting", { queueUrl: config.taskQueueUrl });
+  logger.info('Worker config', { maxRetries: config.maxRetries, maxMessages: config.maxMessages, waitTime: config.waitTimeSeconds });
 
   while (config.running) {
     try {
       await pollAndProcess(config);
     } catch (err) {
-      console.error('Worker poll cycle error:', err);
+      logger.error('Worker poll cycle error', { error: (err as Error).message });
       // Back off on unexpected errors to avoid tight loop
       await sleep(5000);
     }
   }
 
-  console.log('Worker stopped gracefully.');
+  logger.info('Worker stopped gracefully');
 }
 
 /**
@@ -52,13 +53,13 @@ export async function pollAndProcess(config: WorkerConfig): Promise<ProcessResul
     return [];
   }
 
-  console.log(`Received ${messages.length} message(s) from queue`);
+  logger.info(`Received ${messages.length} message(s)`, { count: messages.length });
 
   const results: ProcessResult[] = [];
 
   for (const sqsMessage of messages) {
     if (!sqsMessage.Body || !sqsMessage.ReceiptHandle) {
-      console.warn('Skipping malformed SQS message (no body or receipt handle)');
+      logger.warn('Skipping malformed SQS message');
       continue;
     }
 
@@ -66,13 +67,13 @@ export async function pollAndProcess(config: WorkerConfig): Promise<ProcessResul
     try {
       taskMessage = JSON.parse(sqsMessage.Body) as TaskMessage;
       if (taskMessage.messageType !== 'PROCESS_TASK') {
-        console.warn(`Skipping unexpected message type: ${taskMessage.messageType}`);
+        logger.warn('Skipping unexpected message type', { messageType: (taskMessage as any).messageType });
         // Delete non-task messages to avoid reprocessing
         await deleteMessage(config.taskQueueUrl, sqsMessage.ReceiptHandle);
         continue;
       }
     } catch (parseErr) {
-      console.error('Failed to parse SQS message body:', parseErr);
+      logger.error('Failed to parse SQS message body', { error: (parseErr as Error).message });
       // Delete unparseable messages (they'll never succeed)
       await deleteMessage(config.taskQueueUrl, sqsMessage.ReceiptHandle);
       continue;
@@ -109,7 +110,7 @@ async function deleteMessage(queueUrl: string, receiptHandle: string): Promise<v
       ReceiptHandle: receiptHandle,
     }));
   } catch (err) {
-    console.error('Failed to delete SQS message:', err);
+    logger.error('Failed to delete SQS message', { error: (err as Error).message });
   }
 }
 
@@ -124,7 +125,7 @@ async function changeVisibility(queueUrl: string, receiptHandle: string, timeout
       VisibilityTimeout: timeoutSeconds,
     }));
   } catch (err) {
-    console.error('Failed to change message visibility:', err);
+    logger.error('Failed to change message visibility', { error: (err as Error).message });
   }
 }
 
@@ -138,17 +139,17 @@ if (require.main === module) {
   const config = { ...defaultWorkerConfig };
 
   process.on('SIGTERM', () => {
-    console.log('Received SIGTERM — shutting down worker...');
+    logger.info('Received SIGTERM — shutting down worker');
     config.running = false;
   });
 
   process.on('SIGINT', () => {
-    console.log('Received SIGINT — shutting down worker...');
+    logger.info('Received SIGINT — shutting down worker');
     config.running = false;
   });
 
   startWorker(config).catch((err) => {
-    console.error('Worker crashed:', err);
+    logger.error('Worker crashed', { error: (err as Error).message });
     process.exit(1);
   });
 }

@@ -7,6 +7,7 @@ import { resolveUserTeam } from '../services/team-service';
 import { notifyTaskStatus, notifyJobStatus, isUserListening } from '../ws/status-notifier';
 import { listTasksByJob } from '../services/task-service';
 import { getJobById } from '../services/job-service';
+import { logger, auditLog, createChildLogger } from '../logging';
 import { WorkerConfig, calculateBackoff } from './config';
 
 export interface ProcessResult {
@@ -76,7 +77,7 @@ async function handleTaskFailure(
     // Push failure notification
     await pushStatusUpdate(userId, jobId, taskId, 'failed', error);
 
-    console.error(`Task ${taskId} permanently failed after ${task.retry_count} retries: ${error}`);
+    auditLog("TASK_FAILED", { taskId, jobId, retryCount: task.retry_count, error });
     return { success: false, taskId, action: 'failed', error };
   }
 
@@ -93,7 +94,7 @@ async function handleTaskFailure(
     error,
   });
 
-  console.warn(`Task ${taskId} failed (attempt ${task.retry_count}/${config.maxRetries}), retrying in ${Math.round(backoff)}ms: ${error}`);
+  logger.warn("Task retrying", { taskId, jobId, attempt: task.retry_count, maxRetries: config.maxRetries, backoffMs: Math.round(backoff), error });
 
   return { success: false, taskId, action: 'retrying', error };
 }
@@ -131,10 +132,13 @@ async function deliverToDestination(message: TaskMessage): Promise<void> {
     throw new Error(result.error || `Delivery failed with status ${result.statusCode}`);
   }
 
-  console.log(
-    `Task ${message.taskId} delivered to ${destination.destinationName} ` +
-    `(${result.bytesSent} bytes, checksum=${result.checksumValid ?? 'not verified'})`,
-  );
+  auditLog('TASK_DELIVERED', {
+    taskId: message.taskId,
+    jobId: message.jobId,
+    destinationName: destination.destinationName,
+    bytesSent: result.bytesSent,
+    checksumValid: result.checksumValid ?? 'not verified',
+  });
 }
 
 // Export processTask for testing
@@ -178,6 +182,6 @@ async function pushStatusUpdate(
     });
   } catch (err) {
     // Never let notification failure break the processing pipeline
-    console.warn('Failed to push status notification:', err);
+    logger.warn("Failed to push status notification", { error: (err as Error).message });
   }
 }

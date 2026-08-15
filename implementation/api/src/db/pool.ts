@@ -1,3 +1,4 @@
+import { logger } from '../logging';
 import { Pool, PoolConfig } from 'pg';
 
 const config: PoolConfig = {
@@ -14,7 +15,7 @@ const config: PoolConfig = {
 export const pool = new Pool(config);
 
 pool.on('error', (err) => {
-  console.error('Unexpected database pool error:', err);
+  logger.error('Unexpected database pool error', { error: err.message });
 });
 
 /**

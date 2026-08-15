@@ -1,3 +1,4 @@
+import { logger } from '../logging';
 import WebSocket from 'ws';
 import { IncomingMessage } from 'http';
 import { parse as parseUrl } from 'url';
@@ -67,7 +68,7 @@ export class ConnectionManager {
       timestamp: new Date().toISOString(),
     });
 
-    console.log(`WebSocket connected: userId=${userId} (total: ${this.connectionCount})`);
+    logger.info('WebSocket connected', { userId: client.userId, total: this.connectionCount });
     return client;
   }
 
@@ -82,7 +83,7 @@ export class ConnectionManager {
         this.clients.delete(client.userId);
       }
     }
-    console.log(`WebSocket disconnected: userId=${client.userId} (total: ${this.connectionCount})`);
+    logger.info('WebSocket disconnected', { userId: client.userId, total: this.connectionCount });
   }
 
   /**

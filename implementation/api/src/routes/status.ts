@@ -1,3 +1,4 @@
+import { logger } from '../logging';
 import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { getJobById } from '../services/job-service';
@@ -53,7 +54,7 @@ statusRouter.get('/jobs/:jobId/status', async (req: AuthenticatedRequest, res: R
       },
     });
   } catch (err) {
-    console.error('Error getting job status:', err);
+    logger.error('Error getting job status', { error: (err as Error).message });
     res.status(500).json({ error: 'Failed to get job status' });
   }
 });
