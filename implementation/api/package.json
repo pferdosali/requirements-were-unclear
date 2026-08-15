@@ -6,7 +6,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
+    "start:worker": "node dist/worker/worker.js",
     "dev": "ts-node src/server.ts",
+    "dev:worker": "ts-node src/worker/worker.ts",
     "test": "jest"
   },
   "jest": {
