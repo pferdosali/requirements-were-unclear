@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigw from 'aws-cdk-lib/aws-apigateway';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as path from 'path';
 import { Construct } from 'constructs';
 
@@ -13,8 +14,8 @@ import { Construct } from 'constructs';
  *   - region-a: US Clinical Ops destination
  *   - region-b: EU Clinical Ops destination
  *
- * Both use the same handler code but have separate log groups for
- * independent monitoring and verification during testing.
+ * Each Lambda saves received files to the S3 blob bucket under
+ * destinations/{region}/delivered/{filename} for demo visibility.
  */
 export class MockDestinationStack extends cdk.Stack {
   public readonly regionAEndpoint: string;
@@ -24,6 +25,13 @@ export class MockDestinationStack extends cdk.Stack {
     super(scope, id, props);
 
     const code = lambda.Code.fromAsset(path.join(__dirname, '../../mock-destination/dist'));
+
+    // Reference the blob bucket for file storage
+    const blobBucket = s3.Bucket.fromBucketName(
+      this,
+      'BlobBucketRef',
+      'docbridge-storage-blobstorageaeabf72d-zg6r3qbw734z',
+    );
 
     // --- Region A: US Clinical Ops ---
     const regionAFn = new lambda.Function(this, 'MockDestinationRegionA', {
@@ -38,8 +46,10 @@ export class MockDestinationStack extends cdk.Stack {
         NODE_OPTIONS: '--enable-source-maps',
         DESTINATION_REGION: 'region-a',
         DESTINATION_NAME: 'US Clinical Ops',
+        DESTINATION_BUCKET: blobBucket.bucketName,
       },
     });
+    blobBucket.grantWrite(regionAFn);
 
     const regionAApi = new apigw.RestApi(this, 'MockDestinationApiRegionA', {
       restApiName: 'docbridge-mock-destination-region-a',
@@ -70,8 +80,10 @@ export class MockDestinationStack extends cdk.Stack {
         NODE_OPTIONS: '--enable-source-maps',
         DESTINATION_REGION: 'region-b',
         DESTINATION_NAME: 'EU Clinical Ops',
+        DESTINATION_BUCKET: blobBucket.bucketName,
       },
     });
+    blobBucket.grantWrite(regionBFn);
 
     const regionBApi = new apigw.RestApi(this, 'MockDestinationApiRegionB', {
       restApiName: 'docbridge-mock-destination-region-b',

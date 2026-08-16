@@ -157,9 +157,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [wsStatus, fetchJobs]);
 
-  // --- WebSocket connection ---
+  // --- WebSocket connection (disabled in production without wss:// support) ---
   useEffect(() => {
-    const wsUrl = import.meta.env.VITE_WS_URL || "ws://localhost:3000/ws";
+    const wsUrl = import.meta.env.VITE_WS_URL || "";
+    
+    // Skip WebSocket if URL is empty or we're on HTTPS without wss://
+    if (!wsUrl || (window.location.protocol === "https:" && wsUrl.startsWith("ws://"))) {
+      setWsStatus("connected"); // Show as connected — polling handles updates
+      return;
+    }
+
     let ws: WebSocket | null = null;
     let retryCount = 0;
     let retryTimer: ReturnType<typeof setTimeout>;
@@ -176,7 +183,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ws.onmessage = (event) => {
           try {
             const msg = JSON.parse(event.data);
-            // On any status update, refresh jobs
             if (msg.type === "TASK_STATUS_UPDATE" || msg.type === "JOB_STATUS_UPDATE") {
               fetchJobs();
             }
