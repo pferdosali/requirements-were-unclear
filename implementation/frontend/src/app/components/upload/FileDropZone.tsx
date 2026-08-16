@@ -26,6 +26,7 @@ export function FileDropZone({ onAdd }: { onAdd: (files: StagedFile[]) => void }
         name: f.name,
         size: f.size,
         type: f.type || f.name.split(".").pop() || "unknown",
+        file: f,
       });
     });
     if (rejected > 0) {

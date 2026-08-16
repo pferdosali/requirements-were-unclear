@@ -71,4 +71,6 @@ export interface StagedFile {
   size: number;
   type: string;
   error?: string;
+  /** Reference to the actual File object for upload */
+  file?: File;
 }

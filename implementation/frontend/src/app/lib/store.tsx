@@ -8,13 +8,19 @@ import {
   useState,
 } from "react";
 import type { Job, Persona, StagedFile, UploadTask } from "./types";
+import { PERSONAS, DESTINATIONS, findDestinationPath, deriveJobStatus } from "./mock";
 import {
-  PERSONAS,
-  deriveJobStatus,
-  findDestinationPath,
-  seedJobsForUser,
-  uuid,
-} from "./mock";
+  listJobs,
+  getJob as apiGetJob,
+  getJobTasks,
+  createJob as apiCreateJob,
+  submitJob as apiSubmitJob,
+  retryTask as apiRetryTask,
+  uploadFile,
+  type BackendJob,
+  type BackendTask,
+} from "../api";
+import { toast } from "sonner";
 
 export type WsStatus = "connected" | "reconnecting" | "disconnected";
 
@@ -29,19 +35,51 @@ interface AppContextValue {
   personas: Persona[];
   persona: Persona;
   setPersona: (id: string) => void;
-  jobs: Job[]; // jobs for current persona
+  jobs: Job[];
   getJob: (id: string) => Job | undefined;
-  createJob: (files: StagedFile[], destinationId: string) => string;
+  createJob: (files: StagedFile[], destinationId: string) => Promise<string>;
   retryTask: (jobId: string, taskId: string) => void;
   retryAllFailed: (jobId: string) => void;
   wsStatus: WsStatus;
   apiOnline: boolean;
   lastApiCall: ApiLogEntry | null;
+  refreshJobs: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
 const STORAGE_KEY = "docbridge.personaId";
+
+// --- Adapters: Convert backend snake_case to frontend types ---
+
+function adaptJob(backend: BackendJob, tasks: UploadTask[] = []): Job {
+  return {
+    id: backend.job_id,
+    ownerId: backend.user_id,
+    region: "us-east", // Will be enhanced with multi-region later
+    destinationId: tasks[0]?.id ?? "",
+    destinationPath: "",
+    status: backend.status === "partial_success" ? "partial" : backend.status,
+    tasks,
+    createdAt: new Date(backend.created_at).getTime(),
+    updatedAt: new Date(backend.updated_at).getTime(),
+  };
+}
+
+function adaptTask(backend: BackendTask): UploadTask {
+  return {
+    id: backend.task_id,
+    fileName: backend.file_id.split("/").pop() ?? backend.file_id,
+    fileSize: 0, // Not tracked in current backend
+    fileType: "application/octet-stream",
+    status: backend.status,
+    retryCount: backend.retry_count,
+    maxRetries: 3,
+    error: backend.status === "failed" ? "Delivery failed" : undefined,
+    startedAt: new Date(backend.created_at).getTime(),
+    completedAt: backend.status === "completed" ? new Date(backend.updated_at).getTime() : undefined,
+  };
+}
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [personaId, setPersonaId] = useState<string>(() => {
@@ -52,154 +90,198 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return PERSONAS[0].id;
   });
 
-  // All jobs across all users, seeded once.
-  const [allJobs, setAllJobs] = useState<Job[]>(() =>
-    PERSONAS.flatMap((p) => seedJobsForUser(p.id)),
-  );
-  const [wsStatus, setWsStatus] = useState<WsStatus>("connected");
-  const [lastApiCall, setLastApiCall] = useState<ApiLogEntry | null>({
-    method: "GET",
-    path: "/api/me",
-    status: 200,
-    ms: 42,
-  });
-
-  const timers = useRef<number[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [wsStatus, setWsStatus] = useState<WsStatus>("disconnected");
+  const [apiOnline, setApiOnline] = useState(true);
+  const [lastApiCall, setLastApiCall] = useState<ApiLogEntry | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval>>();
 
   const persona = useMemo(
     () => PERSONAS.find((p) => p.id === personaId) ?? PERSONAS[0],
     [personaId],
   );
 
-  const logApi = useCallback((method: string, path: string) => {
-    setLastApiCall({
-      method,
-      path,
-      status: 200,
-      ms: 20 + Math.floor(Math.random() * 90),
-    });
+  const logApi = useCallback((method: string, path: string, status = 200) => {
+    setLastApiCall({ method, path, status, ms: 20 + Math.floor(Math.random() * 90) });
   }, []);
+
+  // --- Fetch jobs from backend ---
+  const fetchJobs = useCallback(async () => {
+    try {
+      const { jobs: backendJobs } = await listJobs();
+      // For each job, fetch its tasks
+      const fullJobs = await Promise.all(
+        backendJobs.map(async (bj) => {
+          try {
+            const { tasks } = await getJobTasks(bj.job_id);
+            return adaptJob(bj, tasks.map(adaptTask));
+          } catch {
+            return adaptJob(bj);
+          }
+        }),
+      );
+      setJobs(fullJobs.sort((a, b) => b.createdAt - a.createdAt));
+      setApiOnline(true);
+      logApi("GET", "/api/jobs");
+    } catch (err) {
+      console.error("Failed to fetch jobs:", err);
+      setApiOnline(false);
+    }
+  }, [logApi]);
+
+  // Fetch jobs on mount and when persona changes
+  useEffect(() => {
+    fetchJobs();
+  }, [personaId, fetchJobs]);
+
+  // Poll every 5 seconds when WebSocket is not connected
+  useEffect(() => {
+    if (wsStatus !== "connected") {
+      pollRef.current = setInterval(fetchJobs, 5000);
+    }
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [wsStatus, fetchJobs]);
+
+  // --- WebSocket connection ---
+  useEffect(() => {
+    const wsUrl = import.meta.env.VITE_WS_URL || "ws://localhost:3000/ws";
+    let ws: WebSocket | null = null;
+    let retryCount = 0;
+    let retryTimer: ReturnType<typeof setTimeout>;
+
+    function connect() {
+      try {
+        ws = new WebSocket(`${wsUrl}?userId=${personaId}`);
+
+        ws.onopen = () => {
+          setWsStatus("connected");
+          retryCount = 0;
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            // On any status update, refresh jobs
+            if (msg.type === "TASK_STATUS_UPDATE" || msg.type === "JOB_STATUS_UPDATE") {
+              fetchJobs();
+            }
+          } catch { /* ignore */ }
+        };
+
+        ws.onclose = () => {
+          ws = null;
+          setWsStatus("reconnecting");
+          const delay = Math.min(1000 * 2 ** retryCount, 30000);
+          retryCount++;
+          retryTimer = setTimeout(connect, delay);
+        };
+
+        ws.onerror = () => {
+          ws?.close();
+        };
+      } catch {
+        setWsStatus("disconnected");
+      }
+    }
+
+    connect();
+
+    return () => {
+      clearTimeout(retryTimer);
+      ws?.close();
+      ws = null;
+    };
+  }, [personaId, fetchJobs]);
+
+  // --- Actions ---
 
   const setPersona = useCallback(
     (id: string) => {
       setPersonaId(id);
       try {
         localStorage.setItem(STORAGE_KEY, id);
-      } catch {
-        /* ignore */
-      }
+      } catch { /* ignore */ }
+      const p = PERSONAS.find((pp) => pp.id === id);
+      if (p) toast.success(`Switched to ${p.name} (${p.team} · ${p.region})`);
       logApi("GET", "/api/me");
     },
     [logApi],
   );
 
-  // Simulated processing for a single task within a job.
-  const scheduleTask = useCallback(
-    (jobId: string, taskId: string, delay: number) => {
-      const startTimer = window.setTimeout(() => {
-        setAllJobs((prev) =>
-          updateTask(prev, jobId, taskId, () => ({ status: "processing", startedAt: Date.now() })),
-        );
-        const finishTimer = window.setTimeout(() => {
-          const failed = Math.random() < 0.18;
-          setAllJobs((prev) =>
-            updateTask(prev, jobId, taskId, (t) =>
-              failed
-                ? {
-                    status: "failed",
-                    error: "S3 upload timed out (504). Object not confirmed.",
-                    completedAt: Date.now(),
-                  }
-                : { status: "completed", completedAt: Date.now() },
-            ),
-          );
-        }, 1600 + Math.random() * 2600);
-        timers.current.push(finishTimer);
-      }, delay);
-      timers.current.push(startTimer);
-    },
-    [],
-  );
+  const createJobAction = useCallback(
+    async (files: StagedFile[], destinationId: string): Promise<string> => {
+      // Upload all files to S3
+      const uploadResults: Array<{ fileId: string; objectKey: string }> = [];
 
-  const createJob = useCallback(
-    (files: StagedFile[], destinationId: string): string => {
-      const jobId = uuid();
-      const tasks: UploadTask[] = files.map((f) => ({
-        id: uuid(),
-        fileName: f.name,
-        fileSize: f.size,
-        fileType: f.type,
-        status: "pending",
-        retryCount: 0,
-        maxRetries: 3,
-      }));
-      const path = findDestinationPath(persona.region, destinationId) ?? destinationId;
-      const job: Job = {
-        id: jobId,
-        ownerId: persona.id,
-        region: persona.region,
-        destinationId,
-        destinationPath: path,
-        status: "pending",
-        tasks,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      setAllJobs((prev) => [job, ...prev]);
-      logApi("POST", "/api/jobs");
-      logApi("POST", `/api/jobs/${jobId.slice(0, 8)}/submit`);
-      // kick off processing with staggered delays
-      tasks.forEach((t, i) => scheduleTask(jobId, t.id, 600 + i * 700));
-      return jobId;
-    },
-    [persona, logApi, scheduleTask],
-  );
+      for (const staged of files) {
+        if (staged.file) {
+          // Real file upload via presign → S3 → confirm
+          const result = await uploadFile(staged.file, () => {
+            // Progress tracked by UploadProgressModal via its own mechanism
+          });
+          uploadResults.push(result);
+        } else {
+          // Fallback: use the staged ID as file reference (for testing)
+          uploadResults.push({ fileId: staged.id, objectKey: staged.id });
+        }
+      }
 
-  const retryTask = useCallback(
-    (jobId: string, taskId: string) => {
-      logApi("POST", `/api/tasks/${taskId.slice(0, 8)}/retry`);
-      setAllJobs((prev) =>
-        updateTask(prev, jobId, taskId, (t) => ({
-          status: "pending",
-          error: undefined,
-          retryCount: t.retryCount + 1,
+      // Create job with tasks
+      const response = await apiCreateJob(
+        uploadResults.map((r) => ({
+          fileId: r.objectKey,
+          destinationId,
         })),
       );
-      scheduleTask(jobId, taskId, 500);
+
+      logApi("POST", "/api/jobs");
+
+      // Submit job
+      await apiSubmitJob(response.job.job_id);
+      logApi("POST", `/api/jobs/${response.job.job_id}/submit`);
+
+      toast.success("Upload job submitted for processing");
+
+      // Refresh jobs list
+      await fetchJobs();
+
+      return response.job.job_id;
     },
-    [logApi, scheduleTask],
+    [logApi, fetchJobs],
+  );
+
+  const retryTaskAction = useCallback(
+    async (jobId: string, taskId: string) => {
+      try {
+        await apiRetryTask(taskId);
+        logApi("POST", `/api/tasks/${taskId}/retry`);
+        toast.success("Task queued for retry");
+        await fetchJobs();
+      } catch (err) {
+        toast.error("Failed to retry task");
+        console.error(err);
+      }
+    },
+    [logApi, fetchJobs],
   );
 
   const retryAllFailed = useCallback(
-    (jobId: string) => {
-      const job = allJobs.find((j) => j.id === jobId);
+    async (jobId: string) => {
+      const job = jobs.find((j) => j.id === jobId);
       if (!job) return;
-      job.tasks
-        .filter((t) => t.status === "failed")
-        .forEach((t, i) => {
-          window.setTimeout(() => retryTask(jobId, t.id), i * 200);
-        });
+      const failedTasks = job.tasks.filter((t) => t.status === "failed");
+      for (const task of failedTasks) {
+        await retryTaskAction(jobId, task.id);
+      }
     },
-    [allJobs, retryTask],
+    [jobs, retryTaskAction],
   );
 
-  useEffect(() => {
-    return () => {
-      timers.current.forEach((t) => window.clearTimeout(t));
-    };
-  }, []);
-
-  const jobs = useMemo(
-    () =>
-      allJobs
-        .filter((j) => j.ownerId === persona.id)
-        .sort((a, b) => b.createdAt - a.createdAt),
-    [allJobs, persona.id],
-  );
-
-  const getJob = useCallback(
-    (id: string) => allJobs.find((j) => j.id === id),
-    [allJobs],
+  const getJobFn = useCallback(
+    (id: string) => jobs.find((j) => j.id === id),
+    [jobs],
   );
 
   const value: AppContextValue = {
@@ -207,34 +289,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     persona,
     setPersona,
     jobs,
-    getJob,
-    createJob,
-    retryTask,
+    getJob: getJobFn,
+    createJob: createJobAction,
+    retryTask: retryTaskAction,
     retryAllFailed,
     wsStatus,
-    apiOnline: true,
+    apiOnline,
     lastApiCall,
+    refreshJobs: fetchJobs,
   };
 
-  // reference wsStatus setter to satisfy potential future use without lint noise
-  void setWsStatus;
-
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
-}
-
-function updateTask(
-  jobs: Job[],
-  jobId: string,
-  taskId: string,
-  patch: (t: UploadTask) => Partial<UploadTask>,
-): Job[] {
-  return jobs.map((job) => {
-    if (job.id !== jobId) return job;
-    const tasks = job.tasks.map((t) =>
-      t.id === taskId ? { ...t, ...patch(t) } : t,
-    );
-    return { ...job, tasks, status: deriveJobStatus(tasks), updatedAt: Date.now() };
-  });
 }
 
 export function useApp(): AppContextValue {

@@ -75,15 +75,22 @@ export function UploadPage() {
     setUploading(true);
   }
 
-  function handleUploadComplete() {
-    const jobId = createJob(files, destination!.id);
-    setUploading(false);
-    toast.success("Job submitted", {
-      description: `${files.length} file${files.length > 1 ? "s" : ""} → ${destination!.name}`,
-    });
-    setFiles([]);
-    setSelected(new Set());
-    navigate(`/jobs/${jobId}`);
+  async function handleUploadComplete() {
+    try {
+      const jobId = await createJob(files, destination!.id);
+      setUploading(false);
+      toast.success("Job submitted", {
+        description: `${files.length} file${files.length > 1 ? "s" : ""} → ${destination!.name}`,
+      });
+      setFiles([]);
+      setSelected(new Set());
+      navigate(`/jobs/${jobId}`);
+    } catch (err) {
+      setUploading(false);
+      toast.error("Upload failed", {
+        description: err instanceof Error ? err.message : "Unknown error",
+      });
+    }
   }
 
   return (
