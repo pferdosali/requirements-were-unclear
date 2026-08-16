@@ -1,6 +1,6 @@
 # DocBridge — Latest Updates
 
-Last Updated: 2026-08-14
+Last Updated: 2026-08-15
 
 ---
 
@@ -8,7 +8,7 @@ Last Updated: 2026-08-14
 
 | Epic                             | Status                 | Notes                                  |
 | -------------------------------- | ---------------------- | -------------------------------------- |
-| #9 Infrastructure as Code        | ✅ Complete (CDK synth) | Not yet deployed to AWS                |
+| #9 Infrastructure as Code        | ✅ Deployed to AWS      | All 8 stacks live in us-east-1         |
 | #1 Authentication & User Access  | ✅ Complete             | Mock auth middleware + team resolution |
 | #2 File Upload & S3 Storage      | ✅ Complete             | Presigned URL pattern, browser→S3 verified |
 | #3 Job and Task Metadata         | ✅ Complete             | PostgreSQL schema, CRUD APIs, ownership checks |
@@ -126,15 +126,22 @@ requirements-were-unclear/
 
 ## CDK Stacks
 
-| Stack | Resources |
-|-------|-----------|
-| DocBridge-Networking | VPC (2 AZ, NAT), SGs for API, Worker, ALB, DB |
-| DocBridge-Auth | Cognito User Pool |
-| DocBridge-Storage | S3 bucket (KMS), RDS PostgreSQL (t3.micro) |
-| DocBridge-Messaging | SQS (Job + Task queues), SNS fanout, DLQs |
-| DocBridge-Routing | DynamoDB table (partition: destination_region, sort: tenant_id) |
-| DocBridge-Compute | ECS cluster, Fargate services (API + Worker) |
-| DocBridge-Edge | ALB, CloudFront, WebSocket API Gateway |
+**Deployed:** 2026-08-15 to `us-east-1` (account 930330383608, profile `dev`)
+
+| Stack | Resources | Status |
+|-------|-----------|--------|
+| DocBridge-Networking | VPC (2 AZ, NAT), SGs for API, Worker, ALB, DB | ✅ Live |
+| DocBridge-Auth | Cognito User Pool | ✅ Live |
+| DocBridge-Storage | S3 bucket (KMS), RDS PostgreSQL 16.9 (t3.micro) | ✅ Live |
+| DocBridge-Messaging | SQS (Job + Task queues), SNS fanout, DLQs | ✅ Live |
+| DocBridge-Routing | DynamoDB table (partition: destination_region, sort: tenant_id) | ✅ Live |
+| DocBridge-Compute | ECS cluster, Fargate services (API + Worker, desiredCount=0) | ✅ Live |
+| DocBridge-Edge | ALB, CloudFront, WebSocket API Gateway | ✅ Live |
+| DocBridge-MockDestination | Lambda + API Gateway (mock file receiver) | ✅ Live |
+
+**Mock Destination Endpoint:** `https://6nn7dftjsk.execute-api.us-east-1.amazonaws.com/prod/upload`
+
+**Note:** Fargate services are at `desiredCount: 0` — the placeholder `amazon/amazon-ecs-sample` image doesn't serve on port 3000 or pass `/health` checks. Once the real Docker image is built (Epic #10), update the image and set `desiredCount: 1`.
 
 ---
 
@@ -185,66 +192,49 @@ requirements-were-unclear/
 
 ## Current Expenses
 
-### Active Resources (as of 2026-06-25)
+### Active Resources (as of 2026-08-15)
 
 | Resource | Status | Monthly Cost |
 |----------|--------|--------------|
+| NAT Gateway | Active | ~$32 |
+| RDS PostgreSQL (db.t3.micro, single-AZ) | Active | ~$13 |
+| ALB | Active | ~$16 |
+| ECS Fargate — API (0.25 vCPU / 512MB) | Scaled to 0 (placeholder image) | $0 |
+| ECS Fargate — Worker (0.25 vCPU / 512MB) | Scaled to 0 (placeholder image) | $0 |
+| CloudFront | Active | ~$1 |
+| S3 (KMS-encrypted, versioned) | Active | < $1 |
+| SQS / SNS | Active | < $1 (free tier) |
+| DynamoDB | Active | < $1 (pay per request) |
+| KMS | Active | ~$1 |
+| Cognito | Active | $0 (free tier) |
+| Mock Destination Lambda | Active | $0 (free tier) |
 | EC2 (i-060972db9737602b8, t2.small) | Stopped | $0 compute |
 | EBS volume (attached to stopped EC2) | Active | ~$0.80 |
-| **Total current** | | **~$0.80/month** |
+| **Total current** | | **~$65/month** |
 
-CDK stacks have NOT been deployed. All infrastructure exists only as synthesized templates locally.
-
-### Projected Cost After CDK Deploy
-
-| Resource | Monthly Estimate |
-|----------|-----------------|
-| NAT Gateway | ~$32 |
-| RDS PostgreSQL (db.t3.micro, single-AZ) | ~$13 |
-| ALB | ~$16 |
-| ECS Fargate — API (0.25 vCPU / 512MB) | ~$9 |
-| ECS Fargate — Worker (0.25 vCPU / 512MB) | ~$9 |
-| CloudFront | ~$1 |
-| S3 | < $1 |
-| SQS / SNS | < $1 (free tier) |
-| DynamoDB | < $1 (pay per request) |
-| KMS | ~$1 |
-| Cognito | $0 (free tier: 50k MAUs) |
-| **Total projected** | **~$82/month** |
+**Note:** Fargate services are at desiredCount=0 because both use the placeholder `amazon/amazon-ecs-sample` image. Once the real Docker image is built and pushed, set desiredCount=1 and costs will rise to ~$82/month.
 
 ### Cost Optimization Options (not yet applied)
 
 - Replace NAT Gateway ($32/mo) with NAT instance (t3.nano, ~$3/mo) — saves ~$29
 - Use VPC endpoints for S3/DynamoDB to reduce NAT data transfer
-- Stop Fargate services when not in use (scale to 0)
+- Stop Fargate services when not in use (scale to 0) — already at 0
 - Use RDS stop/start for dev (auto-restarts after 7 days)
 
 ---
 
 ## Open Questions
 
-1. Maximum supported file size for uploads? (Presigned URLs support up to 5GB per PUT)
+1. ~~Maximum supported file size for uploads?~~ **Decided:** 100MB. See [docs/decisions/001-open-questions-tradeoffs.md](docs/decisions/001-open-questions-tradeoffs.md).
 2. ~~Destination API rate limits — how should we simulate external platforms?~~ **Answered:** Created mock destination Lambda with CloudWatch logging. Supports `?simulate_failure=true` query param for retry testing.
-3. Should the worker be a separate Docker image or share the API image?
+3. ~~Should the worker be a separate Docker image or share the API image?~~ **Decided:** Shared image, separate entrypoints. See [docs/decisions/001-open-questions-tradeoffs.md](docs/decisions/001-open-questions-tradeoffs.md).
 4. Virus scanning requirement — needed for P0?
 5. Data retention policy — permanent per blueprint, but any cleanup for dev?
-6. When to deploy to AWS? (CDK is ready, costs ~$2-3/day for dev)
+6. ~~When to deploy to AWS?~~ **Done:** Deployed 2026-08-15. All 8 stacks live.
 7. Multi-region strategy — are the two regions both in AWS, or is one external?
 8. File type restrictions — should we limit accepted content types?
 9. Checksum validation — SHA-256 per blueprint. Generate client-side or server-side after upload?
-10. **Streaming vs Memory for file delivery — what's the tradeoff?**
-
-    | Approach | Pros | Cons |
-    |----------|------|------|
-    | **Streaming** (pipe S3 → HTTP) | Constant memory, handles multi-GB files, faster TTFB | Can't retry mid-stream, can't verify checksum before send, complex error handling |
-    | **Memory buffer** (download → verify → POST) | Checksum before delivery, simple retry, full error context | Memory-bound (512MB Fargate), slower for large files |
-
-    **Decision:** Memory buffer with 100MB size guard. Rationale:
-    - Checksum verification before delivery is a system reliability guarantee
-    - Retry logic is simpler when you have the full payload
-    - 100MB covers 99%+ of clinical documents
-    - Streaming can be added later for large file support (images, videos)
-    - Fargate memory can be scaled to 4GB if needed (cost: ~$36/mo vs $9/mo)
+10. ~~**Streaming vs Memory for file delivery — what's the tradeoff?**~~ **Decided:** Memory buffer with 100MB size guard. See [docs/decisions/001-open-questions-tradeoffs.md](docs/decisions/001-open-questions-tradeoffs.md).
 
 ---
 

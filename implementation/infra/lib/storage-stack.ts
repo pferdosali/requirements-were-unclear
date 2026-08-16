@@ -25,7 +25,6 @@ export class StorageStack extends cdk.Stack {
     });
 
     this.blobBucket = new s3.Bucket(this, 'BlobStorage', {
-      bucketName: cdk.Fn.sub('docbridge-blob-${AWS::AccountId}'),
       encryption: s3.BucketEncryption.KMS,
       encryptionKey: this.encryptionKey,
       versioned: true,
@@ -36,7 +35,7 @@ export class StorageStack extends cdk.Stack {
 
     this.database = new rds.DatabaseInstance(this, 'MetadataDb', {
       engine: rds.DatabaseInstanceEngine.postgres({
-        version: rds.PostgresEngineVersion.VER_16_4,
+        version: rds.PostgresEngineVersion.VER_16_9,
       }),
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
       vpc: props.vpc,

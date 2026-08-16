@@ -57,7 +57,7 @@ export class ComputeStack extends cdk.Stack {
     this.fargateService = new ecs.FargateService(this, 'ApiService', {
       cluster: this.cluster,
       taskDefinition: apiTaskDef,
-      desiredCount: 1,
+      desiredCount: 0,
       securityGroups: [props.apiServiceSg],
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
@@ -93,7 +93,7 @@ export class ComputeStack extends cdk.Stack {
     new ecs.FargateService(this, 'WorkerService', {
       cluster: this.cluster,
       taskDefinition: workerTaskDef,
-      desiredCount: 1,
+      desiredCount: 0,
       securityGroups: [props.workerServiceSg],
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
