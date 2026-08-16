@@ -49,6 +49,8 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
   // Log to CloudWatch — structured JSON for easy querying
   console.log(JSON.stringify({
     event: 'DOCUMENT_RECEIVED',
+    destinationRegion: process.env.DESTINATION_REGION || 'unknown',
+    destinationName: process.env.DESTINATION_NAME || 'unknown',
     ...metadata,
   }));
 

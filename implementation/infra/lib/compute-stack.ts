@@ -6,6 +6,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
 
 interface ComputeStackProps extends cdk.StackProps {
@@ -14,6 +15,7 @@ interface ComputeStackProps extends cdk.StackProps {
   workerServiceSg: ec2.SecurityGroup;
   dbEndpointAddress: string;
   dbEndpointPort: string;
+  dbSecret: secretsmanager.ISecret;
   blobBucket: s3.IBucket;
   jobQueue: sqs.IQueue;
   taskQueue: sqs.IQueue;
@@ -55,7 +57,7 @@ export class ComputeStack extends cdk.Stack {
 
     apiTaskDef.addContainer('api', {
       image,
-      command: ['node', 'dist/server.js'],
+      command: ['node', 'dist/startup.js'],
       portMappings: [{ containerPort: 3000 }],
       logging: ecs.LogDrivers.awsLogs({
         streamPrefix: 'docbridge-api',
@@ -65,6 +67,11 @@ export class ComputeStack extends cdk.Stack {
         ...sharedEnv,
         JOB_QUEUE_URL: props.jobQueue.queueUrl,
         PORT: '3000',
+      },
+      secrets: {
+        DB_USER: ecs.Secret.fromSecretsManager(props.dbSecret, 'username'),
+        DB_PASSWORD: ecs.Secret.fromSecretsManager(props.dbSecret, 'password'),
+        DB_NAME: ecs.Secret.fromSecretsManager(props.dbSecret, 'dbname'),
       },
       healthCheck: {
         command: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3000/health'],
@@ -105,6 +112,11 @@ export class ComputeStack extends cdk.Stack {
       }),
       environment: {
         ...sharedEnv,
+      },
+      secrets: {
+        DB_USER: ecs.Secret.fromSecretsManager(props.dbSecret, 'username'),
+        DB_PASSWORD: ecs.Secret.fromSecretsManager(props.dbSecret, 'password'),
+        DB_NAME: ecs.Secret.fromSecretsManager(props.dbSecret, 'dbname'),
       },
     });
 

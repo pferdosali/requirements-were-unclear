@@ -39,5 +39,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 EXPOSE 3000
 
-# Default: API server. Override in ECS task definition for worker.
-CMD ["node", "dist/server.js"]
+# Default: API server with migrations. Override in ECS task definition for worker.
+CMD ["node", "dist/startup.js"]

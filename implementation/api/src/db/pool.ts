@@ -10,6 +10,10 @@ const config: PoolConfig = {
   max: parseInt(process.env.DB_POOL_MAX || '10', 10),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
+  // Enable SSL for RDS connections (required by default pg_hba.conf)
+  ...(process.env.DB_HOST && process.env.DB_HOST !== 'localhost' && {
+    ssl: { rejectUnauthorized: false },
+  }),
 };
 
 export const pool = new Pool(config);
