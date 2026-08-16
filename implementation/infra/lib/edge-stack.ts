@@ -57,6 +57,7 @@ export class EdgeStack extends cdk.Stack {
       },
       defaultRootObject: 'index.html',
       errorResponses: [
+        { httpStatus: 403, responsePagePath: '/index.html', responseHttpStatus: 200 },
         { httpStatus: 404, responsePagePath: '/index.html', responseHttpStatus: 200 },
       ],
     });

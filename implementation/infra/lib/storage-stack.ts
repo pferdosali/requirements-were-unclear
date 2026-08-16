@@ -31,6 +31,15 @@ export class StorageStack extends cdk.Stack {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       enforceSSL: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      cors: [
+        {
+          allowedHeaders: ['*'],
+          allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET, s3.HttpMethods.HEAD],
+          allowedOrigins: ['https://dk9dmvpe7a2yb.cloudfront.net', 'http://localhost:5173'],
+          exposedHeaders: ['ETag', 'x-amz-request-id'],
+          maxAge: 3600,
+        },
+      ],
     });
 
     this.database = new rds.DatabaseInstance(this, 'MetadataDb', {
