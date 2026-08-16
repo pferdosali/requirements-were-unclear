@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
+import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
@@ -31,33 +32,53 @@ export class ComputeStack extends cdk.Stack {
       clusterName: 'docbridge',
     });
 
-    // API Service
+    // Shared ECR image — different entrypoints for API vs Worker
+    const repository = ecr.Repository.fromRepositoryName(this, 'DocBridgeRepo', 'docbridge');
+    const image = ecs.ContainerImage.fromEcrRepository(repository, 'latest');
+
+    // Shared environment variables
+    const sharedEnv = {
+      DB_HOST: props.dbEndpointAddress,
+      DB_PORT: props.dbEndpointPort,
+      BUCKET_NAME: props.blobBucket.bucketName,
+      TASK_QUEUE_URL: props.taskQueue.queueUrl,
+      ROUTING_TABLE: props.routingTable.tableName,
+      NODE_ENV: 'production',
+      AWS_REGION: 'us-east-1',
+    };
+
+    // --- API Service ---
     const apiTaskDef = new ecs.FargateTaskDefinition(this, 'ApiTaskDef', {
       memoryLimitMiB: 512,
       cpu: 256,
     });
 
     apiTaskDef.addContainer('api', {
-      image: ecs.ContainerImage.fromRegistry('amazon/amazon-ecs-sample'),
+      image,
+      command: ['node', 'dist/server.js'],
       portMappings: [{ containerPort: 3000 }],
       logging: ecs.LogDrivers.awsLogs({
         streamPrefix: 'docbridge-api',
         logRetention: logs.RetentionDays.ONE_MONTH,
       }),
       environment: {
-        DB_HOST: props.dbEndpointAddress,
-        DB_PORT: props.dbEndpointPort,
-        BUCKET_NAME: props.blobBucket.bucketName,
+        ...sharedEnv,
         JOB_QUEUE_URL: props.jobQueue.queueUrl,
-        TASK_QUEUE_URL: props.taskQueue.queueUrl,
-        ROUTING_TABLE: props.routingTable.tableName,
+        PORT: '3000',
+      },
+      healthCheck: {
+        command: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3000/health'],
+        interval: cdk.Duration.seconds(30),
+        timeout: cdk.Duration.seconds(5),
+        retries: 3,
+        startPeriod: cdk.Duration.seconds(15),
       },
     });
 
     this.fargateService = new ecs.FargateService(this, 'ApiService', {
       cluster: this.cluster,
       taskDefinition: apiTaskDef,
-      desiredCount: 0,
+      desiredCount: 1,
       securityGroups: [props.apiServiceSg],
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
@@ -69,31 +90,28 @@ export class ComputeStack extends cdk.Stack {
     props.taskQueue.grantSendMessages(apiTaskDef.taskRole);
     props.routingTable.grantReadData(apiTaskDef.taskRole);
 
-    // Task Worker Service
+    // --- Task Worker Service ---
     const workerTaskDef = new ecs.FargateTaskDefinition(this, 'WorkerTaskDef', {
       memoryLimitMiB: 512,
       cpu: 256,
     });
 
     workerTaskDef.addContainer('worker', {
-      image: ecs.ContainerImage.fromRegistry('amazon/amazon-ecs-sample'),
+      image,
+      command: ['node', 'dist/worker/worker.js'],
       logging: ecs.LogDrivers.awsLogs({
         streamPrefix: 'docbridge-worker',
         logRetention: logs.RetentionDays.ONE_MONTH,
       }),
       environment: {
-        DB_HOST: props.dbEndpointAddress,
-        DB_PORT: props.dbEndpointPort,
-        BUCKET_NAME: props.blobBucket.bucketName,
-        TASK_QUEUE_URL: props.taskQueue.queueUrl,
-        ROUTING_TABLE: props.routingTable.tableName,
+        ...sharedEnv,
       },
     });
 
     new ecs.FargateService(this, 'WorkerService', {
       cluster: this.cluster,
       taskDefinition: workerTaskDef,
-      desiredCount: 0,
+      desiredCount: 1,
       securityGroups: [props.workerServiceSg],
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,

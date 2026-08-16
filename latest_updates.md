@@ -18,7 +18,7 @@ Last Updated: 2026-08-15
 | #6 Destination Routing           | 🔜 Next                |                                        |
 | #7 Status Tracking UI            | ⬜ Todo                 |                                        |
 | #8 Audit Logging & Observability | ⬜ Todo                 |                                        |
-| #10 CI/CD and Deployment         | ⬜ Todo                 |                                        |
+| #10 CI/CD and Deployment         | ✅ Complete             | Docker → ECR → Fargate, GitHub Actions auto-deploy |
 
 ---
 
@@ -135,13 +135,11 @@ requirements-were-unclear/
 | DocBridge-Storage | S3 bucket (KMS), RDS PostgreSQL 16.9 (t3.micro) | ✅ Live |
 | DocBridge-Messaging | SQS (Job + Task queues), SNS fanout, DLQs | ✅ Live |
 | DocBridge-Routing | DynamoDB table (partition: destination_region, sort: tenant_id) | ✅ Live |
-| DocBridge-Compute | ECS cluster, Fargate services (API + Worker, desiredCount=0) | ✅ Live |
+| DocBridge-Compute | ECS cluster, Fargate services (API + Worker, desiredCount=1) | ✅ Live |
 | DocBridge-Edge | ALB, CloudFront, WebSocket API Gateway | ✅ Live |
 | DocBridge-MockDestination | Lambda + API Gateway (mock file receiver) | ✅ Live |
 
 **Mock Destination Endpoint:** `https://6nn7dftjsk.execute-api.us-east-1.amazonaws.com/prod/upload`
-
-**Note:** Fargate services are at `desiredCount: 0` — the placeholder `amazon/amazon-ecs-sample` image doesn't serve on port 3000 or pass `/health` checks. Once the real Docker image is built (Epic #10), update the image and set `desiredCount: 1`.
 
 ---
 
@@ -199,8 +197,8 @@ requirements-were-unclear/
 | NAT Gateway | Active | ~$32 |
 | RDS PostgreSQL (db.t3.micro, single-AZ) | Active | ~$13 |
 | ALB | Active | ~$16 |
-| ECS Fargate — API (0.25 vCPU / 512MB) | Scaled to 0 (placeholder image) | $0 |
-| ECS Fargate — Worker (0.25 vCPU / 512MB) | Scaled to 0 (placeholder image) | $0 |
+| ECS Fargate — API (0.25 vCPU / 512MB) | Running (1 task) | ~$9 |
+| ECS Fargate — Worker (0.25 vCPU / 512MB) | Running (1 task) | ~$9 |
 | CloudFront | Active | ~$1 |
 | S3 (KMS-encrypted, versioned) | Active | < $1 |
 | SQS / SNS | Active | < $1 (free tier) |
@@ -210,9 +208,9 @@ requirements-were-unclear/
 | Mock Destination Lambda | Active | $0 (free tier) |
 | EC2 (i-060972db9737602b8, t2.small) | Stopped | $0 compute |
 | EBS volume (attached to stopped EC2) | Active | ~$0.80 |
-| **Total current** | | **~$65/month** |
+| **Total current** | | **~$83/month** |
 
-**Note:** Fargate services are at desiredCount=0 because both use the placeholder `amazon/amazon-ecs-sample` image. Once the real Docker image is built and pushed, set desiredCount=1 and costs will rise to ~$82/month.
+**Note:** All services running. To reduce costs when not actively testing, scale Fargate to 0 and stop RDS.
 
 ### Cost Optimization Options (not yet applied)
 
@@ -325,6 +323,44 @@ npm run start:worker   # Production (compiled JS)
 ```
 
 Graceful shutdown: send SIGTERM or SIGINT — worker finishes current message then exits.
+
+---
+
+## CI/CD Pipeline (Epic #10)
+
+### Docker Image
+
+- **Dockerfile:** `implementation/api/Dockerfile` (multi-stage, node:20-alpine, non-root user)
+- **ECR:** `930330383608.dkr.ecr.us-east-1.amazonaws.com/docbridge`
+- **Strategy:** Shared image, separate entrypoints (API: `node dist/server.js`, Worker: `node dist/worker/worker.js`)
+- **Size:** ~120MB production image
+
+### Deployment Flow
+
+```
+Push to main → GitHub Actions:
+  1. API tests pass (Jest)
+  2. CDK synth passes
+  3. Build Docker image
+  4. Push to ECR (SHA tag + :latest)
+  5. Force new ECS deployment (API + Worker)
+  6. Wait for service stability
+```
+
+### GitHub Actions Setup Required
+
+The `deploy` job uses OIDC for AWS authentication. To enable:
+1. Create an IAM role with trust policy for `token.actions.githubusercontent.com`
+2. Add permissions: ECR push, ECS update-service, ECS describe-services
+3. Set GitHub secret `AWS_DEPLOY_ROLE_ARN` to the role ARN
+
+### Live Endpoints
+
+| Endpoint | URL |
+|----------|-----|
+| ALB (Health) | http://DocBri-ApiAl-OWo4hhH8nLlB-762444483.us-east-1.elb.amazonaws.com/health |
+| ALB (API) | http://DocBri-ApiAl-OWo4hhH8nLlB-762444483.us-east-1.elb.amazonaws.com/api/me |
+| Mock Destination | https://6nn7dftjsk.execute-api.us-east-1.amazonaws.com/prod/upload |
 
 ---
 
