@@ -366,6 +366,36 @@ The `deploy` job uses OIDC for AWS authentication. To enable:
 
 ## Next Steps
 
-- Epic #6: Destination Routing — route files to correct regional endpoints
-- Epic #7: Status Tracking UI — WebSocket push for real-time status updates
-- Epic #8: Audit Logging & Observability
+- **Cognito Authentication** — Replace mock `x-user-id` header with real Cognito login flow
+  - User Pool already deployed (DocBridge-Auth stack)
+  - Need: frontend login page, JWT validation middleware, user-to-team mapping
+  - See `docs/specs/docbridge-multi-region-multi-user-requirements.md`
+- **Test Suite** — Add API integration tests + frontend component tests
+  - Backend: extend Jest suite (presign, confirm, jobs, destinations, delivery)
+  - Frontend: Vitest + React Testing Library (upload flow, persona switch, job list)
+  - E2E: Playwright for full browser flow
+- **Multi-Region/Multi-Persona** — Backend enhancements for full persona system
+  - See `docs/specs/docbridge-multi-region-multi-user-requirements.md`
+
+---
+
+## Session Log (2026-08-15/16)
+
+### What was accomplished:
+1. ✅ Deployed all 8 CDK stacks to AWS (~$83/mo)
+2. ✅ Built CI/CD: Dockerfile → ECR → Fargate (API + Worker running)
+3. ✅ Epic #6 complete: DynamoDB routing + 2 mock Lambda destinations
+4. ✅ E2E delivery verified: presign → S3 → job → SQS → worker → deliver → completed
+5. ✅ Frontend (Figma Make) wired to real backend (API client, store, upload flow)
+6. ✅ Deployed frontend to CloudFront (https://dk9dmvpe7a2yb.cloudfront.net)
+7. ✅ Fixed: S3 CORS, SPA routing (403→index.html), WebSocket fallback
+8. ✅ Mock Lambda saves delivered files to S3 destinations/ folder
+9. ✅ Engineering decisions doc (worker image, file size, streaming)
+10. ✅ All spec docs added to repo (integration, multi-region, figma-make)
+
+### UAT URL: https://dk9dmvpe7a2yb.cloudfront.net
+
+### Remaining for next session:
+- Cognito auth integration (Task #3 from original task list)
+- Test suite
+- Merge PR #22 to main
