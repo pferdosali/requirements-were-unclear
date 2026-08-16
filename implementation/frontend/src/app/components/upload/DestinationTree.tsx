@@ -43,6 +43,8 @@ interface TreeProps {
   /** When set, clicking any node (not just folders) selects it. */
   selectableTypes?: DestinationNode["type"][];
   showCounts?: boolean;
+  /** Override the default static tree with API-fetched data */
+  rootOverride?: DestinationNode;
 }
 
 export function DestinationTree({
@@ -51,8 +53,9 @@ export function DestinationTree({
   onSelect,
   selectableTypes = ["folder"],
   showCounts = false,
+  rootOverride,
 }: TreeProps) {
-  const root = DESTINATIONS[region];
+  const root = rootOverride ?? DESTINATIONS[region];
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     const s = new Set<string>();

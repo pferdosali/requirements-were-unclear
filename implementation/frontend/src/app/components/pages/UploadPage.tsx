@@ -26,7 +26,7 @@ import { RegionBadge } from "../shared/RegionBadge";
 import { cn } from "../ui/utils";
 
 export function UploadPage() {
-  const { persona, createJob } = useApp();
+  const { persona, createJob, destinationTree } = useApp();
   const navigate = useNavigate();
 
   const [files, setFiles] = useState<StagedFile[]>([]);
@@ -147,6 +147,7 @@ export function UploadPage() {
                 setShowDestError(false);
               }}
               showCounts
+              rootOverride={destinationTree ?? undefined}
             />
             <Separator />
             {destination ? (

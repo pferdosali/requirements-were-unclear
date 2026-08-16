@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { Job, Persona, StagedFile, UploadTask } from "./types";
+import type { DestinationNode, Job, Persona, StagedFile, UploadTask } from "./types";
 import { PERSONAS, DESTINATIONS, findDestinationPath, deriveJobStatus } from "./mock";
 import {
   listJobs,
@@ -17,8 +17,10 @@ import {
   submitJob as apiSubmitJob,
   retryTask as apiRetryTask,
   uploadFile,
+  getDestinations,
   type BackendJob,
   type BackendTask,
+  type DestinationsResponse,
 } from "../api";
 import { toast } from "sonner";
 
@@ -44,6 +46,7 @@ interface AppContextValue {
   apiOnline: boolean;
   lastApiCall: ApiLogEntry | null;
   refreshJobs: () => void;
+  destinationTree: DestinationNode | null;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -91,6 +94,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [destinationTree, setDestinationTree] = useState<DestinationNode | null>(null);
   const [wsStatus, setWsStatus] = useState<WsStatus>("disconnected");
   const [apiOnline, setApiOnline] = useState(true);
   const [lastApiCall, setLastApiCall] = useState<ApiLogEntry | null>(null);
@@ -132,6 +136,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Fetch jobs on mount and when persona changes
   useEffect(() => {
     fetchJobs();
+    // Fetch destinations for this persona's region
+    getDestinations()
+      .then((res) => {
+        setDestinationTree(res.destinations);
+      })
+      .catch(() => {
+        // Fall back to null — components will use static mock
+        setDestinationTree(null);
+      });
   }, [personaId, fetchJobs]);
 
   // Poll every 5 seconds when WebSocket is not connected
@@ -297,6 +310,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     apiOnline,
     lastApiCall,
     refreshJobs: fetchJobs,
+    destinationTree,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

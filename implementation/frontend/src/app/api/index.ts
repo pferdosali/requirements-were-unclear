@@ -9,6 +9,7 @@ export {
   retryTask,
   getMe,
 } from './jobs';
+export { getDestinations } from './destinations';
 export type {
   PresignResponse,
   ConfirmResponse,
@@ -18,3 +19,4 @@ export type {
   BackendTask,
   UserInfo,
 } from './jobs';
+export type { DestinationsResponse } from './destinations';
