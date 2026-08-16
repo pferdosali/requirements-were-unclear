@@ -399,3 +399,12 @@ The `deploy` job uses OIDC for AWS authentication. To enable:
 - Cognito auth integration (Task #3 from original task list)
 - Test suite
 - Merge PR #22 to main
+
+### Known Issues (to fix next session):
+1. **Frontend stale state** — Jobs page sometimes shows "processing" even after backend reports "completed". Root cause: polling fetches job list but task-level data may not update correctly in the React state adapter (`adaptJob`/`adaptTask` in `store.tsx`). The store fetches all tasks per job on each poll which is expensive — may need smarter diffing or just fix the status mapping.
+2. **WebSocket disabled in production** — CloudFront is HTTPS but ALB is HTTP-only, so `ws://` from `https://` page is blocked (mixed content). Current fix: detect and skip WS, show "connected" (polling handles updates). Real fix: add HTTPS to ALB (needs ACM cert + domain) or route WS through API Gateway WebSocket (already deployed but not wired).
+3. **File size shows "0 B" in job detail** — Backend doesn't track file size on tasks (only `file_id`, `destination_id`). The `adaptTask()` function in `store.tsx` hardcodes `fileSize: 0`. Fix: either store file size in tasks table, or fetch it from S3 metadata.
+4. **Upload progress modal is simulated** — The `UploadProgressModal` component uses fake timers. The real upload happens in the `createJob` action after the modal "completes". To show real progress: refactor so the modal drives the actual XHR upload and reports real progress callbacks.
+5. **No error details on "Delivery failed"** — The task status shows "failed" but doesn't display the actual error message from the backend. Need to map `BackendTask` error info through to the UI.
+6. **Persona switch doesn't clear old jobs immediately** — When switching personas, there's a brief flash of the previous user's jobs before the new fetch completes. Add loading state on persona switch.
+7. **GitHub Actions deploy job not yet functional** — Needs `AWS_DEPLOY_ROLE_ARN` secret configured (OIDC role for GitHub → AWS).
