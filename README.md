@@ -201,3 +201,4 @@ See [`docs/decisions/001-open-questions-tradeoffs.md`](docs/decisions/001-open-q
 ## Disclaimer
 
 Personal learning sandbox. Designs may evolve as new approaches are explored.
+
