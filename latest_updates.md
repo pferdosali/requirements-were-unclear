@@ -1,6 +1,6 @@
 # DocBridge — Latest Updates
 
-Last Updated: 2026-08-15
+Last Updated: 2026-08-18
 
 ---
 
@@ -9,7 +9,7 @@ Last Updated: 2026-08-15
 | Epic                             | Status                 | Notes                                  |
 | -------------------------------- | ---------------------- | -------------------------------------- |
 | #9 Infrastructure as Code        | ✅ Deployed to AWS      | All 8 stacks live in us-east-1         |
-| #1 Authentication & User Access  | ✅ Complete (mock)      | Mock auth; Cognito integration pending |
+| #1 Authentication & User Access  | ✅ Complete (Cognito)   | Real AWS Cognito SRP auth with JWT tokens |
 | #2 File Upload & S3 Storage      | ✅ Complete             | Presigned URL pattern, browser→S3 verified |
 | #3 Job and Task Metadata         | ✅ Complete             | PostgreSQL schema, CRUD APIs, ownership checks |
 | CI Pipeline                      | ✅ Complete             | GitHub Actions: API tests + CDK synth |
@@ -36,7 +36,7 @@ Last Updated: 2026-08-15
 | Queue | SQS + SNS fanout + DLQs | Job Queue → SNS → Task Queue[n], dead letter queues |
 | Routing Config | DynamoDB | Simple key-value lookup for region routing |
 | Frontend | React (planned) → CloudFront + S3 | SPA with API routing through CloudFront |
-| Auth | Mock header-based → Cognito for production | x-user-id header for dev |
+| Auth | AWS Cognito SRP + JWT | Real authentication with User Pool, SRP flow, JWT validation |
 | WebSocket | API Gateway WebSocket | Managed, serverless status push |
 | CI/CD | GitHub Actions (planned) | Repo already on GitHub |
 
@@ -58,12 +58,12 @@ Last Updated: 2026-08-15
 | /api/jobs/:jobId/submit | POST | Yes | Submit job for async processing (publishes to SQS) |
 | /api/tasks/:taskId | GET | Yes | Get a single task (ownership via parent job) |
 
-### Auth Mechanism (Dev/Mock)
+### Auth Mechanism
 
-- Send `x-user-id` header with requests
-- Missing header → 401 response
-- User ID maps to a team via `team-service.ts`
-- Teams map to regions (team-a → region-a, team-b → region-b)
+- Frontend uses real AWS Cognito SRP login flow with JWT tokens
+- All 5 test users created in the User Pool (user-1 through user-5)
+- Backend validates JWT tokens from Cognito
+- User ID and team mapping derived from JWT claims
 
 ### Upload Flow
 
@@ -243,7 +243,7 @@ requirements-were-unclear/
 - **Stack:** Vite + React + Tailwind + Radix UI + shadcn
 - **Status:** Wired to real backend, uploads working end-to-end
 - **Local dev:** `npx vite` on :5173, Vite proxy forwards `/api/*` to backend on :3000
-- **Auth:** Hardcoded `x-user-id: user-1` header (injected in `src/app/api.ts`)
+- **Auth:** Real AWS Cognito SRP login with JWT tokens (all 5 test users in User Pool)
 - **Upload flow:** Presign → XHR PUT to S3 (with progress tracking) → confirm
 - **Key change:** Replaced `simulateJobUpload` with `realJobUpload` in App.tsx
 
@@ -367,14 +367,8 @@ The `deploy` job uses OIDC for AWS authentication. To enable:
 
 ## Next Steps
 
-- **Cognito Authentication** — Replace mock `x-user-id` header with real Cognito login flow
-  - User Pool already deployed (DocBridge-Auth stack)
-  - Need: frontend login page, JWT validation middleware, user-to-team mapping
-  - See `docs/specs/docbridge-multi-region-multi-user-requirements.md`
-- **Test Suite** — Add API integration tests + frontend component tests
-  - Backend: extend Jest suite (presign, confirm, jobs, destinations, delivery)
-  - Frontend: Vitest + React Testing Library (upload flow, persona switch, job list)
-  - E2E: Playwright for full browser flow
+- ~~**Cognito Authentication**~~ ✅ **Done** — Real Cognito SRP login integrated, JWT validation, 5 test users created
+- ~~**Test Suite**~~ ✅ **Done** — Test suite added (API integration tests + frontend tests)
 - **Multi-Region/Multi-Persona** — Backend enhancements for full persona system
   - See `docs/specs/docbridge-multi-region-multi-user-requirements.md`
 
@@ -397,15 +391,13 @@ The `deploy` job uses OIDC for AWS authentication. To enable:
 ### UAT URL: https://dk9dmvpe7a2yb.cloudfront.net
 
 ### Remaining for next session:
-- Cognito auth integration (Task #3 from original task list)
-- Test suite
+- ~~Cognito auth integration (Task #3 from original task list)~~ ✅ Done
+- ~~Test suite~~ ✅ Done
 - Merge PR #22 to main
 
 ### Known Issues (to fix next session):
-1. **Frontend stale state** — Jobs page sometimes shows "processing" even after backend reports "completed". Root cause: polling fetches job list but task-level data may not update correctly in the React state adapter (`adaptJob`/`adaptTask` in `store.tsx`). The store fetches all tasks per job on each poll which is expensive — may need smarter diffing or just fix the status mapping.
-2. **WebSocket disabled in production** — CloudFront is HTTPS but ALB is HTTP-only, so `ws://` from `https://` page is blocked (mixed content). Current fix: detect and skip WS, show "connected" (polling handles updates). Real fix: add HTTPS to ALB (needs ACM cert + domain) or route WS through API Gateway WebSocket (already deployed but not wired).
-3. **File size shows "0 B" in job detail** — Backend doesn't track file size on tasks (only `file_id`, `destination_id`). The `adaptTask()` function in `store.tsx` hardcodes `fileSize: 0`. Fix: either store file size in tasks table, or fetch it from S3 metadata.
-4. **Upload progress modal is simulated** — The `UploadProgressModal` component uses fake timers. The real upload happens in the `createJob` action after the modal "completes". To show real progress: refactor so the modal drives the actual XHR upload and reports real progress callbacks.
-5. **No error details on "Delivery failed"** — The task status shows "failed" but doesn't display the actual error message from the backend. Need to map `BackendTask` error info through to the UI.
-6. **Persona switch doesn't clear old jobs immediately** — When switching personas, there's a brief flash of the previous user's jobs before the new fetch completes. Add loading state on persona switch.
-7. **GitHub Actions deploy job not yet functional** — Needs `AWS_DEPLOY_ROLE_ARN` secret configured (OIDC role for GitHub → AWS).
+1. **WebSocket disabled in production** — CloudFront is HTTPS but ALB is HTTP-only, so `ws://` from `https://` page is blocked (mixed content). Current fix: detect and skip WS, show "connected" (polling handles updates). Real fix: add HTTPS to ALB (needs ACM cert + domain) or route WS through API Gateway WebSocket (already deployed but not wired).
+2. **File size shows "0 B" in job detail** — Backend doesn't track file size on tasks (only `file_id`, `destination_id`). The `adaptTask()` function in `store.tsx` hardcodes `fileSize: 0`. Fix: either store file size in tasks table, or fetch it from S3 metadata.
+3. **No error details on "Delivery failed"** — The task status shows "failed" but doesn't display the actual error message from the backend. Need to map `BackendTask` error info through to the UI.
+4. **Persona switch doesn't clear old jobs immediately** — When switching personas, there's a brief flash of the previous user's jobs before the new fetch completes. Add loading state on persona switch.
+5. **GitHub Actions deploy job not yet functional** — Needs `AWS_DEPLOY_ROLE_ARN` secret configured (OIDC role for GitHub → AWS).
