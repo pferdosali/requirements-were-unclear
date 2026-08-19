@@ -5,10 +5,31 @@ import { JobsPanel } from "./components/JobsPanel";
 import { ReceiptModal } from "./components/ReceiptModal";
 import { PrintableReport } from "./components/PrintableReport";
 import { Job, UploadTask } from "./types";
-import { FlaskConical, ShieldCheck, Activity } from "lucide-react";
+import { FlaskConical, ShieldCheck, Activity, LogOut, User } from "lucide-react";
 import { uploadFile } from "./api/upload";
 import { createJob as apiCreateJob, submitJob as apiSubmitJob } from "./api/jobs";
 import { getActivePersonaId } from "./api/client";
+
+// --- Personas for mock login ---
+interface Persona {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  team: string;
+  region: string;
+  avatar: string;
+}
+
+const PERSONAS: Persona[] = [
+  { id: "user-1", name: "Dr. Sarah Chen", email: "sarah.chen@clinvault.health", role: "Principal Investigator", team: "Team Alpha", region: "US-East", avatar: "SC" },
+  { id: "user-2", name: "Dr. Marcus Weber", email: "marcus.weber@clinvault.health", role: "Clinical Director", team: "Team Beta", region: "EU-West", avatar: "MW" },
+  { id: "user-3", name: "Dr. Aiko Tanaka", email: "aiko.tanaka@clinvault.health", role: "Data Reviewer", team: "Team Alpha", region: "US-East", avatar: "AT" },
+  { id: "user-4", name: "Dr. Kwame Osei", email: "kwame.osei@clinvault.health", role: "Site Coordinator", team: "Team Gamma", region: "AP-Southeast", avatar: "KO" },
+  { id: "user-5", name: "Dr. Emma Lindström", email: "emma.lindstrom@clinvault.health", role: "Compliance Officer", team: "Team Beta", region: "EU-West", avatar: "EL" },
+];
+
+const STORAGE_KEY = "docbridge.personaId";
 
 const FOLDERS: FolderNode[] = [
   {
@@ -104,10 +125,14 @@ function genChecksum() {
  */
 async function realJobUpload(
   jobId: string,
+  jobs: Job[],
   setJobs: React.Dispatch<React.SetStateAction<Job[]>>
 ) {
   const startedAt = new Date();
   const txnId = genTxnId();
+
+  const job = jobs.find((j) => j.id === jobId);
+  if (!job || job.tasks.length === 0) return;
 
   // Mark job as uploading
   setJobs((prev) =>
@@ -123,12 +148,6 @@ async function realJobUpload(
           }
     )
   );
-
-  // Get the job's tasks
-  let currentJobs: Job[] = [];
-  setJobs((prev) => { currentJobs = prev; return prev; });
-  const job = currentJobs.find((j) => j.id === jobId);
-  if (!job) return;
 
   const uploadResults: Array<{ objectKey: string; taskId: string }> = [];
 
@@ -168,7 +187,7 @@ async function realJobUpload(
 
       uploadResults.push({ objectKey: result.objectKey, taskId: task.id });
 
-      // Mark checksum as verified (the backend computes SHA-256 during delivery)
+      // Mark checksum as verified after a brief delay
       setTimeout(() => {
         setJobs((cur) =>
           cur.map((j) =>
@@ -187,7 +206,6 @@ async function realJobUpload(
       }, 300);
     } catch (err) {
       console.error(`Upload failed for ${task.file.name}:`, err);
-      // Mark task as failed but continue with others
       setJobs((cur) =>
         cur.map((j) =>
           j.id !== jobId
@@ -206,25 +224,17 @@ async function realJobUpload(
   // Create backend job with all uploaded files
   if (uploadResults.length > 0) {
     try {
-      // Use the first task's folderId as the destination
       const destinationId = job.tasks[0]?.folderId || "region-a";
-
       const response = await apiCreateJob(
         uploadResults.map((r) => ({
           fileId: r.objectKey,
           destinationId,
         })),
       );
-
-      // Submit the job for processing
       await apiSubmitJob(response.job.job_id);
-
-      // Update transaction ID with the real backend job ID
       setJobs((cur) =>
         cur.map((j) =>
-          j.id !== jobId
-            ? j
-            : { ...j, transactionId: response.job.job_id }
+          j.id !== jobId ? j : { ...j, transactionId: response.job.job_id }
         )
       );
     } catch (err) {
@@ -329,6 +339,88 @@ function simulateJobUpload(
 }
 
 export default function App() {
+  // --- Login state ---
+  const [persona, setPersona] = useState<Persona | null>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return PERSONAS.find(p => p.id === saved) ?? null;
+  });
+
+  function handleLogin(p: Persona) {
+    localStorage.setItem(STORAGE_KEY, p.id);
+    setPersona(p);
+  }
+
+  function handleLogout() {
+    localStorage.removeItem(STORAGE_KEY);
+    setPersona(null);
+  }
+
+  if (!persona) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  return <MainApp persona={persona} onLogout={handleLogout} />;
+}
+
+// --- Login Screen ---
+function LoginScreen({ onLogin }: { onLogin: (p: Persona) => void }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: "#0a1929" }}>
+      <div className="w-full max-w-md p-8">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-2 mb-4">
+            <div className="p-2 rounded-lg" style={{ background: "rgba(13,110,170,0.35)" }}>
+              <FlaskConical size={24} style={{ color: "#5dade2" }} />
+            </div>
+            <span className="text-2xl font-semibold text-white">ClinVault</span>
+          </div>
+          <p className="text-sm" style={{ color: "#5a7490" }}>
+            Select a persona to continue (mock authentication)
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {PERSONAS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => onLogin(p)}
+              className="w-full flex items-center gap-4 p-4 rounded-lg text-left transition-all"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(13,110,170,0.15)"; e.currentTarget.style.borderColor = "rgba(13,110,170,0.4)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
+            >
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium"
+                style={{ background: "rgba(13,110,170,0.3)", color: "#5dade2" }}
+              >
+                {p.avatar}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white">{p.name}</p>
+                <p className="text-xs truncate" style={{ color: "#5a7490" }}>
+                  {p.role} · {p.team} · {p.region}
+                </p>
+              </div>
+              <div className="text-xs px-2 py-1 rounded" style={{ background: "rgba(14,165,160,0.15)", color: "#4dd0cb" }}>
+                {p.region}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <p className="text-center text-xs mt-6" style={{ color: "#3d5a72" }}>
+          This is a mock login for testing. Cognito integration coming soon.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// --- Main App (after login) ---
+function MainApp({ persona, onLogout }: { persona: Persona; onLogout: () => void }) {
   const [selectedId, setSelectedId] = useState<string | null>("1-1-1");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -397,9 +489,9 @@ export default function App() {
   );
 
   const handleUploadJob = useCallback((jobId: string) => {
-    realJobUpload(jobId, setJobs);
+    realJobUpload(jobId, jobs, setJobs);
     setActiveJobId((cur) => (cur === jobId ? null : cur));
-  }, []);
+  }, [jobs]);
 
   const handleDeleteJob = useCallback((jobId: string) => {
     setJobs((prev) => prev.filter((j) => j.id !== jobId));
@@ -473,8 +565,19 @@ export default function App() {
             style={{ background: "rgba(255,255,255,0.06)", color: "#8ab0cc" }}
           >
             <Activity size={12} />
-            <span>Dr. Sarah Chen</span>
+            <span>{persona.name}</span>
+            <span className="text-xs" style={{ color: "#4dd0cb" }}>({persona.region})</span>
           </div>
+          <button
+            onClick={onLogout}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors"
+            style={{ color: "#5a7490" }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "#ffffff"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "#5a7490"; }}
+            title="Switch persona"
+          >
+            <LogOut size={12} />
+          </button>
         </div>
       </header>
 
