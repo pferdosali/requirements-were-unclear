@@ -186,6 +186,7 @@
   "active": "77699e407b25e952",
   "lastOpenFiles": [
     "README.md",
+    "latest_updates.md",
     "implementation/api/node_modules/@types/cors/package.json",
     "implementation/api/node_modules/@types/cors/index.d.ts",
     "implementation/api/node_modules/@types/cors/README.md",
@@ -200,7 +201,6 @@
     "implementation/api/node_modules/cors/package.json",
     "implementation/api/node_modules/object-assign/readme.md",
     "implementation/api/node_modules/object-assign/license",
-    "implementation/api/node_modules/object-assign/index.js",
-    "latest_updates.md"
+    "implementation/api/node_modules/object-assign/index.js"
   ]
 }

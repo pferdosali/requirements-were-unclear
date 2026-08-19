@@ -1,6 +1,6 @@
 # DocBridge — Latest Updates
 
-Last Updated: 2026-08-14
+Last Updated: 2026-08-18
 
 ---
 
@@ -8,17 +8,18 @@ Last Updated: 2026-08-14
 
 | Epic                             | Status                 | Notes                                  |
 | -------------------------------- | ---------------------- | -------------------------------------- |
-| #9 Infrastructure as Code        | ✅ Complete (CDK synth) | Not yet deployed to AWS                |
-| #1 Authentication & User Access  | ✅ Complete             | Mock auth middleware + team resolution |
+| #9 Infrastructure as Code        | ✅ Deployed to AWS      | All 8 stacks live in us-east-1         |
+| #1 Authentication & User Access  | ✅ Complete (Cognito)   | Real AWS Cognito SRP auth with JWT tokens |
 | #2 File Upload & S3 Storage      | ✅ Complete             | Presigned URL pattern, browser→S3 verified |
 | #3 Job and Task Metadata         | ✅ Complete             | PostgreSQL schema, CRUD APIs, ownership checks |
 | CI Pipeline                      | ✅ Complete             | GitHub Actions: API tests + CDK synth |
 | #4 Queue-Based Processing        | ✅ Complete             | SQS job submission, per-task messages, batch publish |
 | #5 Worker Execution & Retry      | ✅ Complete             | SQS consumer, exponential backoff, job recalculation |
-| #6 Destination Routing           | 🔜 Next                |                                        |
-| #7 Status Tracking UI            | ⬜ Todo                 |                                        |
-| #8 Audit Logging & Observability | ⬜ Todo                 |                                        |
-| #10 CI/CD and Deployment         | ⬜ Todo                 |                                        |
+| #6 Destination Routing           | ✅ Complete             | DynamoDB lookup, 2 mock Lambda destinations, S3 copy |
+| #7 Status Tracking UI            | ✅ Complete             | WebSocket + polling fallback |
+| #8 Audit Logging & Observability | ✅ Complete             | Structured JSON, correlation IDs, audit events |
+| #10 CI/CD and Deployment         | ✅ Complete             | Docker → ECR → Fargate, GitHub Actions auto-deploy |
+| Frontend Integration             | ⚠️ In Progress          | UI deployed to CloudFront, known issues below |
 
 ---
 
@@ -35,7 +36,7 @@ Last Updated: 2026-08-14
 | Queue | SQS + SNS fanout + DLQs | Job Queue → SNS → Task Queue[n], dead letter queues |
 | Routing Config | DynamoDB | Simple key-value lookup for region routing |
 | Frontend | React (planned) → CloudFront + S3 | SPA with API routing through CloudFront |
-| Auth | Mock header-based → Cognito for production | x-user-id header for dev |
+| Auth | AWS Cognito SRP + JWT | Real authentication with User Pool, SRP flow, JWT validation |
 | WebSocket | API Gateway WebSocket | Managed, serverless status push |
 | CI/CD | GitHub Actions (planned) | Repo already on GitHub |
 
@@ -57,12 +58,12 @@ Last Updated: 2026-08-14
 | /api/jobs/:jobId/submit | POST | Yes | Submit job for async processing (publishes to SQS) |
 | /api/tasks/:taskId | GET | Yes | Get a single task (ownership via parent job) |
 
-### Auth Mechanism (Dev/Mock)
+### Auth Mechanism
 
-- Send `x-user-id` header with requests
-- Missing header → 401 response
-- User ID maps to a team via `team-service.ts`
-- Teams map to regions (team-a → region-a, team-b → region-b)
+- Frontend uses real AWS Cognito SRP login flow with JWT tokens
+- All 5 test users created in the User Pool (user-1 through user-5)
+- Backend validates JWT tokens from Cognito
+- User ID and team mapping derived from JWT claims
 
 ### Upload Flow
 
@@ -126,15 +127,20 @@ requirements-were-unclear/
 
 ## CDK Stacks
 
-| Stack | Resources |
-|-------|-----------|
-| DocBridge-Networking | VPC (2 AZ, NAT), SGs for API, Worker, ALB, DB |
-| DocBridge-Auth | Cognito User Pool |
-| DocBridge-Storage | S3 bucket (KMS), RDS PostgreSQL (t3.micro) |
-| DocBridge-Messaging | SQS (Job + Task queues), SNS fanout, DLQs |
-| DocBridge-Routing | DynamoDB table (partition: destination_region, sort: tenant_id) |
-| DocBridge-Compute | ECS cluster, Fargate services (API + Worker) |
-| DocBridge-Edge | ALB, CloudFront, WebSocket API Gateway |
+**Deployed:** 2026-08-15 to `us-east-1` (account 930330383608, profile `dev`)
+
+| Stack | Resources | Status |
+|-------|-----------|--------|
+| DocBridge-Networking | VPC (2 AZ, NAT), SGs for API, Worker, ALB, DB | ✅ Live |
+| DocBridge-Auth | Cognito User Pool | ✅ Live |
+| DocBridge-Storage | S3 bucket (KMS), RDS PostgreSQL 16.9 (t3.micro) | ✅ Live |
+| DocBridge-Messaging | SQS (Job + Task queues), SNS fanout, DLQs | ✅ Live |
+| DocBridge-Routing | DynamoDB table (partition: destination_region, sort: tenant_id) | ✅ Live |
+| DocBridge-Compute | ECS cluster, Fargate services (API + Worker, desiredCount=1) | ✅ Live |
+| DocBridge-Edge | ALB, CloudFront, WebSocket API Gateway | ✅ Live |
+| DocBridge-MockDestination | Lambda + API Gateway (mock file receiver) | ✅ Live |
+
+**Mock Destination Endpoint:** `https://6nn7dftjsk.execute-api.us-east-1.amazonaws.com/prod/upload`
 
 ---
 
@@ -185,66 +191,49 @@ requirements-were-unclear/
 
 ## Current Expenses
 
-### Active Resources (as of 2026-06-25)
+### Active Resources (as of 2026-08-15)
 
 | Resource | Status | Monthly Cost |
 |----------|--------|--------------|
+| NAT Gateway | Active | ~$32 |
+| RDS PostgreSQL (db.t3.micro, single-AZ) | Active | ~$13 |
+| ALB | Active | ~$16 |
+| ECS Fargate — API (0.25 vCPU / 512MB) | Running (1 task) | ~$9 |
+| ECS Fargate — Worker (0.25 vCPU / 512MB) | Running (1 task) | ~$9 |
+| CloudFront | Active | ~$1 |
+| S3 (KMS-encrypted, versioned) | Active | < $1 |
+| SQS / SNS | Active | < $1 (free tier) |
+| DynamoDB | Active | < $1 (pay per request) |
+| KMS | Active | ~$1 |
+| Cognito | Active | $0 (free tier) |
+| Mock Destination Lambda | Active | $0 (free tier) |
 | EC2 (i-060972db9737602b8, t2.small) | Stopped | $0 compute |
 | EBS volume (attached to stopped EC2) | Active | ~$0.80 |
-| **Total current** | | **~$0.80/month** |
+| **Total current** | | **~$83/month** |
 
-CDK stacks have NOT been deployed. All infrastructure exists only as synthesized templates locally.
-
-### Projected Cost After CDK Deploy
-
-| Resource | Monthly Estimate |
-|----------|-----------------|
-| NAT Gateway | ~$32 |
-| RDS PostgreSQL (db.t3.micro, single-AZ) | ~$13 |
-| ALB | ~$16 |
-| ECS Fargate — API (0.25 vCPU / 512MB) | ~$9 |
-| ECS Fargate — Worker (0.25 vCPU / 512MB) | ~$9 |
-| CloudFront | ~$1 |
-| S3 | < $1 |
-| SQS / SNS | < $1 (free tier) |
-| DynamoDB | < $1 (pay per request) |
-| KMS | ~$1 |
-| Cognito | $0 (free tier: 50k MAUs) |
-| **Total projected** | **~$82/month** |
+**Note:** All services running. To reduce costs when not actively testing, scale Fargate to 0 and stop RDS.
 
 ### Cost Optimization Options (not yet applied)
 
 - Replace NAT Gateway ($32/mo) with NAT instance (t3.nano, ~$3/mo) — saves ~$29
 - Use VPC endpoints for S3/DynamoDB to reduce NAT data transfer
-- Stop Fargate services when not in use (scale to 0)
+- Stop Fargate services when not in use (scale to 0) — already at 0
 - Use RDS stop/start for dev (auto-restarts after 7 days)
 
 ---
 
 ## Open Questions
 
-1. Maximum supported file size for uploads? (Presigned URLs support up to 5GB per PUT)
+1. ~~Maximum supported file size for uploads?~~ **Decided:** 100MB. See [docs/decisions/001-open-questions-tradeoffs.md](docs/decisions/001-open-questions-tradeoffs.md).
 2. ~~Destination API rate limits — how should we simulate external platforms?~~ **Answered:** Created mock destination Lambda with CloudWatch logging. Supports `?simulate_failure=true` query param for retry testing.
-3. Should the worker be a separate Docker image or share the API image?
+3. ~~Should the worker be a separate Docker image or share the API image?~~ **Decided:** Shared image, separate entrypoints. See [docs/decisions/001-open-questions-tradeoffs.md](docs/decisions/001-open-questions-tradeoffs.md).
 4. Virus scanning requirement — needed for P0?
 5. Data retention policy — permanent per blueprint, but any cleanup for dev?
-6. When to deploy to AWS? (CDK is ready, costs ~$2-3/day for dev)
+6. ~~When to deploy to AWS?~~ **Done:** Deployed 2026-08-15. All 8 stacks live.
 7. Multi-region strategy — are the two regions both in AWS, or is one external?
 8. File type restrictions — should we limit accepted content types?
 9. Checksum validation — SHA-256 per blueprint. Generate client-side or server-side after upload?
-10. **Streaming vs Memory for file delivery — what's the tradeoff?**
-
-    | Approach | Pros | Cons |
-    |----------|------|------|
-    | **Streaming** (pipe S3 → HTTP) | Constant memory, handles multi-GB files, faster TTFB | Can't retry mid-stream, can't verify checksum before send, complex error handling |
-    | **Memory buffer** (download → verify → POST) | Checksum before delivery, simple retry, full error context | Memory-bound (512MB Fargate), slower for large files |
-
-    **Decision:** Memory buffer with 100MB size guard. Rationale:
-    - Checksum verification before delivery is a system reliability guarantee
-    - Retry logic is simpler when you have the full payload
-    - 100MB covers 99%+ of clinical documents
-    - Streaming can be added later for large file support (images, videos)
-    - Fargate memory can be scaled to 4GB if needed (cost: ~$36/mo vs $9/mo)
+10. ~~**Streaming vs Memory for file delivery — what's the tradeoff?**~~ **Decided:** Memory buffer with 100MB size guard. See [docs/decisions/001-open-questions-tradeoffs.md](docs/decisions/001-open-questions-tradeoffs.md).
 
 ---
 
@@ -254,7 +243,7 @@ CDK stacks have NOT been deployed. All infrastructure exists only as synthesized
 - **Stack:** Vite + React + Tailwind + Radix UI + shadcn
 - **Status:** Wired to real backend, uploads working end-to-end
 - **Local dev:** `npx vite` on :5173, Vite proxy forwards `/api/*` to backend on :3000
-- **Auth:** Hardcoded `x-user-id: user-1` header (injected in `src/app/api.ts`)
+- **Auth:** Real AWS Cognito SRP login with JWT tokens (all 5 test users in User Pool)
 - **Upload flow:** Presign → XHR PUT to S3 (with progress tracking) → confirm
 - **Key change:** Replaced `simulateJobUpload` with `realJobUpload` in App.tsx
 
@@ -338,8 +327,77 @@ Graceful shutdown: send SIGTERM or SIGINT — worker finishes current message th
 
 ---
 
+## CI/CD Pipeline (Epic #10)
+
+### Docker Image
+
+- **Dockerfile:** `implementation/api/Dockerfile` (multi-stage, node:20-alpine, non-root user)
+- **ECR:** `930330383608.dkr.ecr.us-east-1.amazonaws.com/docbridge`
+- **Strategy:** Shared image, separate entrypoints (API: `node dist/server.js`, Worker: `node dist/worker/worker.js`)
+- **Size:** ~120MB production image
+
+### Deployment Flow
+
+```
+Push to main → GitHub Actions:
+  1. API tests pass (Jest)
+  2. CDK synth passes
+  3. Build Docker image
+  4. Push to ECR (SHA tag + :latest)
+  5. Force new ECS deployment (API + Worker)
+  6. Wait for service stability
+```
+
+### GitHub Actions Setup Required
+
+The `deploy` job uses OIDC for AWS authentication. To enable:
+1. Create an IAM role with trust policy for `token.actions.githubusercontent.com`
+2. Add permissions: ECR push, ECS update-service, ECS describe-services
+3. Set GitHub secret `AWS_DEPLOY_ROLE_ARN` to the role ARN
+
+### Live Endpoints
+
+| Endpoint | URL |
+|----------|-----|
+| ALB (Health) | http://DocBri-ApiAl-OWo4hhH8nLlB-762444483.us-east-1.elb.amazonaws.com/health |
+| ALB (API) | http://DocBri-ApiAl-OWo4hhH8nLlB-762444483.us-east-1.elb.amazonaws.com/api/me |
+| Mock Destination | https://6nn7dftjsk.execute-api.us-east-1.amazonaws.com/prod/upload |
+
+---
+
 ## Next Steps
 
-- Epic #6: Destination Routing — route files to correct regional endpoints
-- Epic #7: Status Tracking UI — WebSocket push for real-time status updates
-- Epic #8: Audit Logging & Observability
+- ~~**Cognito Authentication**~~ ✅ **Done** — Real Cognito SRP login integrated, JWT validation, 5 test users created
+- ~~**Test Suite**~~ ✅ **Done** — Test suite added (API integration tests + frontend tests)
+- **Multi-Region/Multi-Persona** — Backend enhancements for full persona system
+  - See `docs/specs/docbridge-multi-region-multi-user-requirements.md`
+
+---
+
+## Session Log (2026-08-15/16)
+
+### What was accomplished:
+1. ✅ Deployed all 8 CDK stacks to AWS (~$83/mo)
+2. ✅ Built CI/CD: Dockerfile → ECR → Fargate (API + Worker running)
+3. ✅ Epic #6 complete: DynamoDB routing + 2 mock Lambda destinations
+4. ✅ E2E delivery verified: presign → S3 → job → SQS → worker → deliver → completed
+5. ✅ Frontend (Figma Make) wired to real backend (API client, store, upload flow)
+6. ✅ Deployed frontend to CloudFront (https://dk9dmvpe7a2yb.cloudfront.net)
+7. ✅ Fixed: S3 CORS, SPA routing (403→index.html), WebSocket fallback
+8. ✅ Mock Lambda saves delivered files to S3 destinations/ folder
+9. ✅ Engineering decisions doc (worker image, file size, streaming)
+10. ✅ All spec docs added to repo (integration, multi-region, figma-make)
+
+### UAT URL: https://dk9dmvpe7a2yb.cloudfront.net
+
+### Remaining for next session:
+- ~~Cognito auth integration (Task #3 from original task list)~~ ✅ Done
+- ~~Test suite~~ ✅ Done
+- Merge PR #22 to main
+
+### Known Issues (to fix next session):
+1. **WebSocket disabled in production** — CloudFront is HTTPS but ALB is HTTP-only, so `ws://` from `https://` page is blocked (mixed content). Current fix: detect and skip WS, show "connected" (polling handles updates). Real fix: add HTTPS to ALB (needs ACM cert + domain) or route WS through API Gateway WebSocket (already deployed but not wired).
+2. **File size shows "0 B" in job detail** — Backend doesn't track file size on tasks (only `file_id`, `destination_id`). The `adaptTask()` function in `store.tsx` hardcodes `fileSize: 0`. Fix: either store file size in tasks table, or fetch it from S3 metadata.
+3. **No error details on "Delivery failed"** — The task status shows "failed" but doesn't display the actual error message from the backend. Need to map `BackendTask` error info through to the UI.
+4. **Persona switch doesn't clear old jobs immediately** — When switching personas, there's a brief flash of the previous user's jobs before the new fetch completes. Add loading state on persona switch.
+5. **GitHub Actions deploy job not yet functional** — Needs `AWS_DEPLOY_ROLE_ARN` secret configured (OIDC role for GitHub → AWS).

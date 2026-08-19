@@ -25,18 +25,26 @@ export class StorageStack extends cdk.Stack {
     });
 
     this.blobBucket = new s3.Bucket(this, 'BlobStorage', {
-      bucketName: cdk.Fn.sub('docbridge-blob-${AWS::AccountId}'),
       encryption: s3.BucketEncryption.KMS,
       encryptionKey: this.encryptionKey,
       versioned: true,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       enforceSSL: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      cors: [
+        {
+          allowedHeaders: ['*'],
+          allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET, s3.HttpMethods.HEAD],
+          allowedOrigins: ['https://dk9dmvpe7a2yb.cloudfront.net', 'http://localhost:5173'],
+          exposedHeaders: ['ETag', 'x-amz-request-id'],
+          maxAge: 3600,
+        },
+      ],
     });
 
     this.database = new rds.DatabaseInstance(this, 'MetadataDb', {
       engine: rds.DatabaseInstanceEngine.postgres({
-        version: rds.PostgresEngineVersion.VER_16_4,
+        version: rds.PostgresEngineVersion.VER_16_9,
       }),
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
       vpc: props.vpc,

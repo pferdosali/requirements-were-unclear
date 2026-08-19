@@ -51,11 +51,13 @@ export class EdgeStack extends cdk.Stack {
           origin: new origins.LoadBalancerV2Origin(alb, { protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY }),
           allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
           cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         },
       },
       defaultRootObject: 'index.html',
       errorResponses: [
+        { httpStatus: 403, responsePagePath: '/index.html', responseHttpStatus: 200 },
         { httpStatus: 404, responsePagePath: '/index.html', responseHttpStatus: 200 },
       ],
     });

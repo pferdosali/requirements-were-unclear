@@ -38,6 +38,7 @@ const compute = new ComputeStack(app, 'DocBridge-Compute', {
   workerServiceSg: networking.workerServiceSg,
   dbEndpointAddress: storage.database.dbInstanceEndpointAddress,
   dbEndpointPort: storage.database.dbInstanceEndpointPort,
+  dbSecret: storage.database.secret!,
   blobBucket: storage.blobBucket,
   jobQueue: messaging.jobQueue,
   taskQueue: messaging.taskQueue,

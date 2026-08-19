@@ -2,16 +2,32 @@
  * Mock Destination Lambda
  *
  * Simulates an external document receiver endpoint.
- * Accepts file uploads via POST, logs metadata to CloudWatch, and returns 200.
+ * Accepts file uploads via POST, logs metadata to CloudWatch,
+ * and COPIES the file to the S3 destination folder structure.
  *
- * This gives visibility into what the worker sends — useful for:
- * - Verifying delivery payloads
- * - Checking auth headers
- * - Monitoring file sizes and checksums
- * - End-to-end integration testing
+ * S3 destination path: destinations/{region}/{objectKey filename}
+ *
+ * Environment variables:
+ * - DESTINATION_REGION: e.g., "region-a"
+ * - DESTINATION_NAME: e.g., "US Clinical Ops"
+ * - DESTINATION_BUCKET: S3 bucket to copy files to
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+
+const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
+
+const DESTINATION_BUCKET = process.env.DESTINATION_BUCKET || '';
+const DESTINATION_REGION = process.env.DESTINATION_REGION || 'unknown';
+const DESTINATION_NAME = process.env.DESTINATION_NAME || 'unknown';
+
+// Map region IDs to folder paths
+const REGION_PATHS: Record<string, string> = {
+  'region-a': 'us-east/team-alpha',
+  'region-b': 'eu-west/team-beta',
+  'region-c': 'ap-southeast/team-gamma',
+};
 
 interface DeliveryMetadata {
   timestamp: string;
@@ -49,6 +65,8 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
   // Log to CloudWatch — structured JSON for easy querying
   console.log(JSON.stringify({
     event: 'DOCUMENT_RECEIVED',
+    destinationRegion: DESTINATION_REGION,
+    destinationName: DESTINATION_NAME,
     ...metadata,
   }));
 
@@ -69,6 +87,53 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
     };
   }
 
+  // Save file to S3 destination folder
+  let s3Saved = false;
+  let s3Key = '';
+  if (DESTINATION_BUCKET && event.body) {
+    try {
+      const regionPath = REGION_PATHS[DESTINATION_REGION] || DESTINATION_REGION;
+      const fileName = metadata.objectKey
+        ? metadata.objectKey.split('/').pop() || 'unnamed'
+        : `file-${Date.now()}`;
+
+      s3Key = `destinations/${regionPath}/delivered/${fileName}`;
+
+      const fileBuffer = event.isBase64Encoded
+        ? Buffer.from(event.body, 'base64')
+        : Buffer.from(event.body, 'utf-8');
+
+      await s3.send(new PutObjectCommand({
+        Bucket: DESTINATION_BUCKET,
+        Key: s3Key,
+        Body: fileBuffer,
+        ContentType: metadata.contentType || 'application/octet-stream',
+        Metadata: {
+          'source-object-key': metadata.objectKey || '',
+          'checksum': metadata.checksum || '',
+          'delivered-at': metadata.timestamp,
+          'destination-region': DESTINATION_REGION,
+        },
+      }));
+
+      s3Saved = true;
+      console.log(JSON.stringify({
+        event: 'FILE_SAVED_TO_S3',
+        bucket: DESTINATION_BUCKET,
+        key: s3Key,
+        bytes: fileBuffer.byteLength,
+      }));
+    } catch (err: any) {
+      console.error(JSON.stringify({
+        event: 'S3_SAVE_ERROR',
+        error: err.message,
+        bucket: DESTINATION_BUCKET,
+        key: s3Key,
+      }));
+      // Don't fail the delivery — the file was received successfully
+    }
+  }
+
   return {
     statusCode: 200,
     headers: { 'Content-Type': 'application/json' },
@@ -78,6 +143,7 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       bytesReceived: metadata.contentLength,
       checksum: metadata.checksum,
       timestamp: metadata.timestamp,
+      s3Destination: s3Saved ? { bucket: DESTINATION_BUCKET, key: s3Key } : null,
     }),
   };
 }

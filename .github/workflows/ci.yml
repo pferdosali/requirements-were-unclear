@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: docbridge
+  ECS_CLUSTER: docbridge
+
 jobs:
   api:
     name: API - Build & Test
@@ -56,3 +65,60 @@ jobs:
 
       - name: CDK Synth
         run: npx cdk synth --quiet
+
+  deploy:
+    name: Build, Push & Deploy
+    runs-on: ubuntu-latest
+    needs: [api, infra]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: implementation/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Deploy API service
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $(aws ecs list-services --cluster $ECS_CLUSTER --query "serviceArns[?contains(@, 'ApiService')]" --output text | xargs -I {} basename {}) \
+            --force-new-deployment \
+            --region $AWS_REGION
+
+      - name: Deploy Worker service
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $(aws ecs list-services --cluster $ECS_CLUSTER --query "serviceArns[?contains(@, 'WorkerService')]" --output text | xargs -I {} basename {}) \
+            --force-new-deployment \
+            --region $AWS_REGION
+
+      - name: Wait for API service stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER \
+            --services $(aws ecs list-services --cluster $ECS_CLUSTER --query "serviceArns[?contains(@, 'ApiService')]" --output text | xargs -I {} basename {}) \
+            --region $AWS_REGION
