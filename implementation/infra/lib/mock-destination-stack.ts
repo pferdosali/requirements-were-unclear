@@ -100,5 +100,37 @@ export class MockDestinationStack extends cdk.Stack {
       value: this.regionBEndpoint,
       description: 'URL for region-b mock destination',
     });
+
+    // --- Region C: AP-Southeast Ops ---
+    const regionCFn = new lambda.Function(this, 'MockDestinationRegionC', {
+      functionName: 'docbridge-mock-destination-region-c',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler.handler',
+      code,
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      logRetention: logs.RetentionDays.ONE_WEEK,
+      environment: {
+        NODE_OPTIONS: '--enable-source-maps',
+        DESTINATION_REGION: 'region-c',
+        DESTINATION_NAME: 'AP-Southeast Ops',
+        DESTINATION_BUCKET: blobBucket.bucketName,
+      },
+    });
+    blobBucket.grantWrite(regionCFn);
+
+    const regionCApi = new apigw.RestApi(this, 'MockDestinationApiRegionC', {
+      restApiName: 'docbridge-mock-destination-region-c',
+      description: 'Mock destination for region-c (AP-Southeast Ops)',
+      binaryMediaTypes: ['application/octet-stream', '*/*'],
+    });
+
+    const regionCUpload = regionCApi.root.addResource('upload');
+    regionCUpload.addMethod('POST', new apigw.LambdaIntegration(regionCFn));
+
+    new cdk.CfnOutput(this, 'MockDestinationRegionCEndpoint', {
+      value: regionCApi.url + 'upload',
+      description: 'URL for region-c mock destination',
+    });
   }
 }

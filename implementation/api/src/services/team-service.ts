@@ -13,6 +13,9 @@ export interface Team {
 const MOCK_TEAMS: Record<string, Team> = {
   'user-1': { teamId: 'team-a', name: 'US Clinical Ops', region: 'region-a' },
   'user-2': { teamId: 'team-b', name: 'EU Clinical Ops', region: 'region-b' },
+  'user-3': { teamId: 'team-a', name: 'US Clinical Ops', region: 'region-a' },
+  'user-4': { teamId: 'team-c', name: 'AP-Southeast Ops', region: 'region-c' },
+  'user-5': { teamId: 'team-b', name: 'EU Clinical Ops', region: 'region-b' },
 };
 
 const DEFAULT_TEAM: Team = { teamId: 'team-a', name: 'US Clinical Ops', region: 'region-a' };
