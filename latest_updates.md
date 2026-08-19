@@ -9,16 +9,17 @@ Last Updated: 2026-08-15
 | Epic                             | Status                 | Notes                                  |
 | -------------------------------- | ---------------------- | -------------------------------------- |
 | #9 Infrastructure as Code        | ✅ Deployed to AWS      | All 8 stacks live in us-east-1         |
-| #1 Authentication & User Access  | ✅ Complete             | Mock auth middleware + team resolution |
+| #1 Authentication & User Access  | ✅ Complete (mock)      | Mock auth; Cognito integration pending |
 | #2 File Upload & S3 Storage      | ✅ Complete             | Presigned URL pattern, browser→S3 verified |
 | #3 Job and Task Metadata         | ✅ Complete             | PostgreSQL schema, CRUD APIs, ownership checks |
 | CI Pipeline                      | ✅ Complete             | GitHub Actions: API tests + CDK synth |
 | #4 Queue-Based Processing        | ✅ Complete             | SQS job submission, per-task messages, batch publish |
 | #5 Worker Execution & Retry      | ✅ Complete             | SQS consumer, exponential backoff, job recalculation |
-| #6 Destination Routing           | 🔜 Next                |                                        |
-| #7 Status Tracking UI            | ⬜ Todo                 |                                        |
-| #8 Audit Logging & Observability | ⬜ Todo                 |                                        |
+| #6 Destination Routing           | ✅ Complete             | DynamoDB lookup, 2 mock Lambda destinations, S3 copy |
+| #7 Status Tracking UI            | ✅ Complete             | WebSocket + polling fallback |
+| #8 Audit Logging & Observability | ✅ Complete             | Structured JSON, correlation IDs, audit events |
 | #10 CI/CD and Deployment         | ✅ Complete             | Docker → ECR → Fargate, GitHub Actions auto-deploy |
+| Frontend Integration             | ⚠️ In Progress          | UI deployed to CloudFront, known issues below |
 
 ---
 

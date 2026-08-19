@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { ArrowRight, FolderCheck, Loader2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import type { DestinationNode, StagedFile } from "../../lib/types";
 import { useApp } from "../../lib/store";
 import { REGIONS } from "../../lib/mock";
+import { uploadFile } from "../../api/upload";
+import { createJob as apiCreateJob, submitJob as apiSubmitJob } from "../../api/jobs";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Separator } from "../ui/separator";
@@ -21,20 +23,30 @@ import {
 import { FileDropZone } from "../upload/FileDropZone";
 import { FileList } from "../upload/FileList";
 import { DestinationTree } from "../upload/DestinationTree";
-import { UploadProgressModal } from "../upload/UploadProgressModal";
+import {
+  UploadProgressModal,
+  type FileProgress,
+  type UploadStatus,
+} from "../upload/UploadProgressModal";
 import { RegionBadge } from "../shared/RegionBadge";
 import { cn } from "../ui/utils";
 
 export function UploadPage() {
-  const { persona, createJob, destinationTree } = useApp();
+  const { persona, destinationTree, refreshJobs } = useApp();
   const navigate = useNavigate();
 
   const [files, setFiles] = useState<StagedFile[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [destination, setDestination] = useState<DestinationNode | null>(null);
   const [showDestError, setShowDestError] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+
+  // Upload state
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
+  const [fileProgress, setFileProgress] = useState<FileProgress[]>([]);
+  const [uploadError, setUploadError] = useState<string>();
+  const cancelledRef = useRef(false);
 
   function addFiles(newFiles: StagedFile[]) {
     setFiles((prev) => [...newFiles, ...prev]);
@@ -65,33 +77,85 @@ export function UploadPage() {
 
   const canSubmit = files.length > 0 && !!destination;
 
-  function handleSubmit() {
+  const handleSubmit = useCallback(async () => {
     if (!destination) {
       setShowDestError(true);
       toast.error("Please select a destination folder.");
       return;
     }
     if (files.length === 0) return;
-    setUploading(true);
-  }
 
-  async function handleUploadComplete() {
+    // Reset state
+    cancelledRef.current = false;
+    setUploadError(undefined);
+    setUploadStatus("uploading");
+    setFileProgress(files.map((f) => ({ id: f.id, name: f.name, size: f.size, percent: 0, done: false })));
+    setUploadOpen(true);
+
     try {
-      const jobId = await createJob(files, destination!.id);
-      setUploading(false);
-      toast.success("Job submitted", {
-        description: `${files.length} file${files.length > 1 ? "s" : ""} → ${destination!.name}`,
-      });
-      setFiles([]);
-      setSelected(new Set());
-      navigate(`/jobs/${jobId}`);
+      // Phase 1: Upload all files to S3 with real progress
+      const uploadResults: Array<{ fileId: string; objectKey: string }> = [];
+
+      for (let i = 0; i < files.length; i++) {
+        if (cancelledRef.current) break;
+
+        const staged = files[i];
+        if (staged.file) {
+          const result = await uploadFile(staged.file, (percent) => {
+            setFileProgress((prev) =>
+              prev.map((fp, idx) => idx === i ? { ...fp, percent } : fp),
+            );
+          });
+          uploadResults.push(result);
+        } else {
+          uploadResults.push({ fileId: staged.id, objectKey: staged.id });
+        }
+
+        // Mark this file as done
+        setFileProgress((prev) =>
+          prev.map((fp, idx) => idx === i ? { ...fp, percent: 100, done: true } : fp),
+        );
+      }
+
+      if (cancelledRef.current) {
+        setUploadStatus("idle");
+        setUploadOpen(false);
+        return;
+      }
+
+      // Phase 2: Create job and submit
+      setUploadStatus("submitting");
+
+      const response = await apiCreateJob(
+        uploadResults.map((r) => ({
+          fileId: r.objectKey,
+          destinationId: destination.id,
+        })),
+      );
+
+      await apiSubmitJob(response.job.job_id);
+
+      // Done!
+      setUploadStatus("done");
+      await refreshJobs();
+
+      // Auto-navigate after brief delay
+      setTimeout(() => {
+        setUploadOpen(false);
+        setFiles([]);
+        setSelected(new Set());
+        toast.success("Job submitted", {
+          description: `${files.length} file${files.length > 1 ? "s" : ""} → ${destination.name}`,
+        });
+        navigate(`/jobs/${response.job.job_id}`);
+      }, 1200);
     } catch (err) {
-      setUploading(false);
-      toast.error("Upload failed", {
-        description: err instanceof Error ? err.message : "Unknown error",
-      });
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setUploadStatus("error");
+      setUploadError(msg);
+      toast.error("Upload failed", { description: msg });
     }
-  }
+  }, [files, destination, navigate, refreshJobs]);
 
   return (
     <div className="space-y-6 pb-28">
@@ -193,8 +257,8 @@ export function UploadPage() {
               "Add files to get started."
             )}
           </p>
-          <Button size="lg" disabled={!canSubmit || uploading} onClick={handleSubmit}>
-            {uploading ? (
+          <Button size="lg" disabled={!canSubmit || uploadOpen} onClick={handleSubmit}>
+            {uploadOpen ? (
               <>
                 <Loader2 className="size-4 animate-spin" /> Submitting…
               </>
@@ -208,13 +272,16 @@ export function UploadPage() {
       </div>
 
       <UploadProgressModal
-        open={uploading}
-        files={files}
+        open={uploadOpen}
+        status={uploadStatus}
+        fileProgress={fileProgress}
+        error={uploadError}
         onCancel={() => {
-          setUploading(false);
-          toast.info("Upload cancelled. Submitted files continue processing.");
+          cancelledRef.current = true;
+          setUploadOpen(false);
+          setUploadStatus("idle");
+          toast.info("Upload cancelled.");
         }}
-        onComplete={handleUploadComplete}
       />
 
       <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
