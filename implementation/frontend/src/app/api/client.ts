@@ -1,6 +1,7 @@
 /**
  * Centralized API client for DocBridge backend.
- * Injects x-user-id header from active persona, handles errors, logs in dev.
+ * Uses Cognito JWT token for authentication when available,
+ * falls back to x-user-id for backward compatibility.
  */
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -16,11 +17,20 @@ export class ApiError extends Error {
   }
 }
 
-// Lightweight persona accessor (avoids circular deps with React context)
+// Token storage (set by App after Cognito login)
+let _authToken: string | null = null;
+let _userId: string | null = null;
+
+export function setAuthCredentials(token: string | null, userId: string | null) {
+  _authToken = token;
+  _userId = userId;
+}
+
+// Lightweight persona accessor (fallback when no Cognito token)
 const STORAGE_KEY = 'docbridge.personaId';
 
 export function getActivePersonaId(): string {
-  return localStorage.getItem(STORAGE_KEY) || import.meta.env.VITE_DEFAULT_PERSONA || 'user-1';
+  return _userId || localStorage.getItem(STORAGE_KEY) || 'user-1';
 }
 
 async function request<T>(
@@ -32,20 +42,21 @@ async function request<T>(
   },
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
-  const personaId = getActivePersonaId();
 
   const headers: Record<string, string> = {
-    'x-user-id': personaId,
     ...options?.headers,
   };
+
+  // Auth: prefer JWT token, fallback to x-user-id
+  if (_authToken) {
+    headers['Authorization'] = `Bearer ${_authToken}`;
+  }
+  // Always send x-user-id for backward compat with current backend
+  headers['x-user-id'] = getActivePersonaId();
 
   // Only set Content-Type for JSON bodies
   if (options?.body) {
     headers['Content-Type'] = 'application/json';
-  }
-
-  if (import.meta.env.DEV) {
-    console.log(`[API] ${method} ${url}`, options?.body ?? '');
   }
 
   const res = await fetch(url, {
@@ -56,20 +67,11 @@ async function request<T>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
-    if (import.meta.env.DEV) {
-      console.error(`[API] ${method} ${url} → ${res.status}`, body);
-    }
     throw new ApiError(res.status, res.statusText, body);
   }
 
-  // Handle 204 No Content
   if (res.status === 204) return undefined as T;
-
-  const data = await res.json();
-  if (import.meta.env.DEV) {
-    console.log(`[API] ${method} ${url} → ${res.status}`, data);
-  }
-  return data as T;
+  return res.json() as Promise<T>;
 }
 
 export const api = {

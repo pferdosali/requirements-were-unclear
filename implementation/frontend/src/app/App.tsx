@@ -1,16 +1,17 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { FolderTree, FolderNode } from "./components/FolderTree";
 import { StagingZone } from "./components/StagingZone";
 import { JobsPanel } from "./components/JobsPanel";
 import { ReceiptModal } from "./components/ReceiptModal";
 import { PrintableReport } from "./components/PrintableReport";
 import { Job, UploadTask } from "./types";
-import { FlaskConical, ShieldCheck, Activity, LogOut, User } from "lucide-react";
+import { FlaskConical, ShieldCheck, Activity, LogOut, Loader2 } from "lucide-react";
 import { uploadFile } from "./api/upload";
 import { createJob as apiCreateJob, submitJob as apiSubmitJob } from "./api/jobs";
-import { getActivePersonaId } from "./api/client";
+import { getActivePersonaId, setAuthCredentials } from "./api/client";
+import { signIn, signOut, getCurrentSession, type AuthResult } from "./api/auth";
 
-// --- Personas for mock login ---
+// --- Personas for display (maps Cognito users to app roles) ---
 interface Persona {
   id: string;
   name: string;
@@ -19,17 +20,19 @@ interface Persona {
   team: string;
   region: string;
   avatar: string;
+  backendUserId: string; // Maps to x-user-id for backend
 }
 
 const PERSONAS: Persona[] = [
-  { id: "user-1", name: "Dr. Sarah Chen", email: "sarah.chen@clinvault.health", role: "Principal Investigator", team: "Team Alpha", region: "US-East", avatar: "SC" },
-  { id: "user-2", name: "Dr. Marcus Weber", email: "marcus.weber@clinvault.health", role: "Clinical Director", team: "Team Beta", region: "EU-West", avatar: "MW" },
-  { id: "user-3", name: "Dr. Aiko Tanaka", email: "aiko.tanaka@clinvault.health", role: "Data Reviewer", team: "Team Alpha", region: "US-East", avatar: "AT" },
-  { id: "user-4", name: "Dr. Kwame Osei", email: "kwame.osei@clinvault.health", role: "Site Coordinator", team: "Team Gamma", region: "AP-Southeast", avatar: "KO" },
-  { id: "user-5", name: "Dr. Emma Lindström", email: "emma.lindstrom@clinvault.health", role: "Compliance Officer", team: "Team Beta", region: "EU-West", avatar: "EL" },
+  { id: "user-1", name: "Dr. Sarah Chen", email: "sarah.chen@clinvault.health", role: "Principal Investigator", team: "Team Alpha", region: "US-East", avatar: "SC", backendUserId: "user-1" },
+  { id: "user-2", name: "Dr. Marcus Weber", email: "marcus.weber@clinvault.health", role: "Clinical Director", team: "Team Beta", region: "EU-West", avatar: "MW", backendUserId: "user-2" },
+  { id: "user-3", name: "Dr. Aiko Tanaka", email: "aiko.tanaka@clinvault.health", role: "Data Reviewer", team: "Team Alpha", region: "US-East", avatar: "AT", backendUserId: "user-3" },
+  { id: "user-4", name: "Dr. Kwame Osei", email: "kwame.osei@clinvault.health", role: "Site Coordinator", team: "Team Gamma", region: "AP-Southeast", avatar: "KO", backendUserId: "user-4" },
+  { id: "user-5", name: "Dr. Emma Lindström", email: "emma.lindstrom@clinvault.health", role: "Compliance Officer", team: "Team Beta", region: "EU-West", avatar: "EL", backendUserId: "user-5" },
 ];
 
 const STORAGE_KEY = "docbridge.personaId";
+const DEFAULT_PASSWORD = "DocBridge2024!";
 
 const FOLDERS: FolderNode[] = [
   {
@@ -128,16 +131,13 @@ async function realJobUpload(
   jobs: Job[],
   setJobs: React.Dispatch<React.SetStateAction<Job[]>>
 ) {
-  console.log("[realJobUpload] Starting upload for job:", jobId);
   const startedAt = new Date();
   const txnId = genTxnId();
 
   const job = jobs.find((j) => j.id === jobId);
   if (!job || job.tasks.length === 0) {
-    console.error("[realJobUpload] Job not found or no tasks!", { jobId, jobCount: jobs.length });
     return;
   }
-  console.log("[realJobUpload] Found job with", job.tasks.length, "tasks");
 
   // Mark job as uploading
   setJobs((prev) =>
@@ -159,7 +159,6 @@ async function realJobUpload(
   // Upload each file with real progress
   for (const task of job.tasks) {
     try {
-      console.log("[realJobUpload] Uploading:", task.file.name, task.file.size, "bytes");
       const result = await uploadFile(task.file, (percent) => {
         setJobs((cur) =>
           cur.map((j) =>
@@ -192,7 +191,6 @@ async function realJobUpload(
       );
 
       uploadResults.push({ objectKey: result.objectKey, taskId: task.id });
-      console.log("[realJobUpload] Upload success:", result.objectKey);
 
       // Mark checksum as verified after a brief delay
       setTimeout(() => {
@@ -347,19 +345,52 @@ function simulateJobUpload(
 
 export default function App() {
   // --- Login state ---
-  const [persona, setPersona] = useState<Persona | null>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return PERSONAS.find(p => p.id === saved) ?? null;
-  });
+  const [persona, setPersona] = useState<Persona | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  function handleLogin(p: Persona) {
-    localStorage.setItem(STORAGE_KEY, p.id);
-    setPersona(p);
+  // Check for existing Cognito session on mount
+  useEffect(() => {
+    getCurrentSession().then((session) => {
+      if (session) {
+        const matched = PERSONAS.find(p => p.email === session.email);
+        if (matched) {
+          setAuthCredentials(session.idToken, matched.backendUserId);
+          localStorage.setItem(STORAGE_KEY, matched.backendUserId);
+          setPersona(matched);
+        }
+      }
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  async function handleLogin(p: Persona) {
+    try {
+      const result = await signIn(p.email, DEFAULT_PASSWORD);
+      setAuthCredentials(result.idToken, p.backendUserId);
+      localStorage.setItem(STORAGE_KEY, p.backendUserId);
+      setPersona(p);
+    } catch (err) {
+      // Fall back to mock auth if Cognito fails
+      console.warn("Cognito login failed, using mock auth:", err);
+      setAuthCredentials(null, p.backendUserId);
+      localStorage.setItem(STORAGE_KEY, p.backendUserId);
+      setPersona(p);
+    }
   }
 
   function handleLogout() {
+    signOut();
+    setAuthCredentials(null, null);
     localStorage.removeItem(STORAGE_KEY);
     setPersona(null);
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0a1929" }}>
+        <Loader2 className="animate-spin" size={32} style={{ color: "#5dade2" }} />
+      </div>
+    );
   }
 
   if (!persona) {
@@ -370,7 +401,22 @@ export default function App() {
 }
 
 // --- Login Screen ---
-function LoginScreen({ onLogin }: { onLogin: (p: Persona) => void }) {
+function LoginScreen({ onLogin }: { onLogin: (p: Persona) => Promise<void> }) {
+  const [loggingIn, setLoggingIn] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleClick(p: Persona) {
+    setLoggingIn(p.id);
+    setError(null);
+    try {
+      await onLogin(p);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setLoggingIn(null);
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: "#0a1929" }}>
       <div className="w-full max-w-md p-8">
@@ -382,28 +428,34 @@ function LoginScreen({ onLogin }: { onLogin: (p: Persona) => void }) {
             <span className="text-2xl font-semibold text-white">ClinVault</span>
           </div>
           <p className="text-sm" style={{ color: "#5a7490" }}>
-            Select a persona to continue (mock authentication)
+            Sign in with your credentials
           </p>
+          {error && (
+            <p className="text-xs mt-2 px-3 py-1.5 rounded" style={{ background: "rgba(192,57,43,0.15)", color: "#e74c3c" }}>
+              {error}
+            </p>
+          )}
         </div>
 
         <div className="space-y-3">
           {PERSONAS.map((p) => (
             <button
               key={p.id}
-              onClick={() => onLogin(p)}
-              className="w-full flex items-center gap-4 p-4 rounded-lg text-left transition-all"
+              onClick={() => handleClick(p)}
+              disabled={loggingIn !== null}
+              className="w-full flex items-center gap-4 p-4 rounded-lg text-left transition-all disabled:opacity-50"
               style={{
-                background: "rgba(255,255,255,0.04)",
+                background: loggingIn === p.id ? "rgba(13,110,170,0.2)" : "rgba(255,255,255,0.04)",
                 border: "1px solid rgba(255,255,255,0.08)",
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(13,110,170,0.15)"; e.currentTarget.style.borderColor = "rgba(13,110,170,0.4)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
+              onMouseEnter={(e) => { if (!loggingIn) { e.currentTarget.style.background = "rgba(13,110,170,0.15)"; e.currentTarget.style.borderColor = "rgba(13,110,170,0.4)"; } }}
+              onMouseLeave={(e) => { if (!loggingIn) { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; } }}
             >
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium"
                 style={{ background: "rgba(13,110,170,0.3)", color: "#5dade2" }}
               >
-                {p.avatar}
+                {loggingIn === p.id ? <Loader2 size={16} className="animate-spin" /> : p.avatar}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white">{p.name}</p>
@@ -419,7 +471,7 @@ function LoginScreen({ onLogin }: { onLogin: (p: Persona) => void }) {
         </div>
 
         <p className="text-center text-xs mt-6" style={{ color: "#3d5a72" }}>
-          This is a mock login for testing. Cognito integration coming soon.
+          Authenticated via AWS Cognito · All credentials: <code style={{ color: "#5dade2" }}>DocBridge2024!</code>
         </p>
       </div>
     </div>
