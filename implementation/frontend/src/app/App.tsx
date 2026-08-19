@@ -128,11 +128,16 @@ async function realJobUpload(
   jobs: Job[],
   setJobs: React.Dispatch<React.SetStateAction<Job[]>>
 ) {
+  console.log("[realJobUpload] Starting upload for job:", jobId);
   const startedAt = new Date();
   const txnId = genTxnId();
 
   const job = jobs.find((j) => j.id === jobId);
-  if (!job || job.tasks.length === 0) return;
+  if (!job || job.tasks.length === 0) {
+    console.error("[realJobUpload] Job not found or no tasks!", { jobId, jobCount: jobs.length });
+    return;
+  }
+  console.log("[realJobUpload] Found job with", job.tasks.length, "tasks");
 
   // Mark job as uploading
   setJobs((prev) =>
@@ -154,6 +159,7 @@ async function realJobUpload(
   // Upload each file with real progress
   for (const task of job.tasks) {
     try {
+      console.log("[realJobUpload] Uploading:", task.file.name, task.file.size, "bytes");
       const result = await uploadFile(task.file, (percent) => {
         setJobs((cur) =>
           cur.map((j) =>
@@ -186,6 +192,7 @@ async function realJobUpload(
       );
 
       uploadResults.push({ objectKey: result.objectKey, taskId: task.id });
+      console.log("[realJobUpload] Upload success:", result.objectKey);
 
       // Mark checksum as verified after a brief delay
       setTimeout(() => {
@@ -490,7 +497,7 @@ function MainApp({ persona, onLogout }: { persona: Persona; onLogout: () => void
 
   const handleUploadJob = useCallback((jobId: string) => {
     realJobUpload(jobId, jobs, setJobs);
-    setActiveJobId((cur) => (cur === jobId ? null : cur));
+    // Don't deactivate — keep it expanded to show progress
   }, [jobs]);
 
   const handleDeleteJob = useCallback((jobId: string) => {
@@ -628,7 +635,7 @@ function MainApp({ persona, onLogout }: { persona: Persona; onLogout: () => void
             jobs={jobs}
             activeJobId={activeJobId}
             selectedFolderName={selectedFolder?.name ?? null}
-            onSetActive={(id) => setActiveJobId(id)}
+            onSetActive={(id) => setActiveJobId((cur) => cur === id ? null : id)}
             onCreateJob={createJob}
             onUploadJob={handleUploadJob}
             onDeleteJob={handleDeleteJob}
