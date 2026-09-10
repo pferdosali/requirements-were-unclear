@@ -4,45 +4,32 @@
 > This report is derived from live systems (git, GitHub, AWS, HTTP probes),
 > so it reflects reality at generation time, not aspirations.
 
-**Generated:** `2026-09-10T04:59:26Z` (UTC)
+**Generated:** `2026-09-10T05:05:19Z` (UTC)
 
 ## 1. Repository State (git)
 
 | Field | Value |
 |-------|-------|
 | Current branch | `main` |
-| HEAD | 851a616 — docs: add PROJECT_OVERVIEW.md (status, decisions, assumptions, next steps) (2026-09-09 21:45:35 -0700) |
+| HEAD | 27323ba — chore: regenerate status + add 2026-09-09 handoff entry (2026-09-09 21:59:36 -0700) |
 | Commits ahead of origin/main | 0 |
 | Commits behind origin/main | 0 |
 | Uncommitted changes | 2 file(s) ⚠️ |
-| Untracked files | none ✅ |
+| Untracked files | 1 ⚠️ |
 
 <details><summary>Uncommitted / untracked detail</summary>
 
 ```
- M CONTRIBUTING-agent.md
- M STATUS.generated.md
+ M PROJECT_OVERVIEW.md
+?? scripts/reconcile-board.sh
 ```
 </details>
 
 ## 2. GitHub Issues & PRs
 
-**Open PRs:**
+**Open PRs:** none ✅
 
-- #21 feat(epic-10): CI/CD, Docker, and stop/start deploy (`feat/epic-10-deployment`)
-
-**Open issues:** 8
-
-- #10 CI/CD and Deployment
-- #8 Audit Logging & Observability
-- #7 Status Tracking UI
-- #6 Destination Routing
-- #5 Worker Execution & Retry
-- #4 Queue-Based Processing
-- #2 File Upload & S3 Storage
-- #1 Authentication & User Access
-
-> ⚠️ Verify these against `## 4. Live Deployment` below — issues often lag reality.
+**Open issues:** none ✅
 
 ## 3. Build / Test (API)
 
@@ -69,8 +56,8 @@ Account `930330383608`, region `us-east-1`, profile `dev`.
 
 | Service | Desired | Running | Status |
 |---------|---------|---------|--------|
-| `DocBridge-Compute-ApiServiceC9037CF0-2HQ0m4epupPE` | 1 | 2 | ACTIVE ⚠️ |
-| `DocBridge-Compute-WorkerService99815FA9-Azckdl4SxMAR` | 1 | 2 | ACTIVE ⚠️ |
+| `DocBridge-Compute-ApiServiceC9037CF0-2HQ0m4epupPE` | 1 | 1 | ACTIVE ✅ |
+| `DocBridge-Compute-WorkerService99815FA9-Azckdl4SxMAR` | 1 | 1 | ACTIVE ✅ |
 
 **Mock destination endpoint:** `https://6nn7dftjsk.execute-api.us-east-1.amazonaws.com/prod/upload`
 

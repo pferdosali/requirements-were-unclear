@@ -4,7 +4,7 @@ _A high-level snapshot of what DocBridge is, where it stands, the key decisions 
 assumptions behind it, and what comes next. For machine-verified live state, always
 run `./scripts/status.sh` — this document is the human narrative._
 
-**Last updated:** 2026-09-09
+**Last updated:** 2026-09-09 (docs published to main; SSH push set up; GitHub board reconciled — 0 open issues/PRs)
 
 ---
 
@@ -107,8 +107,10 @@ services + ALB/NAT are the ongoing spend).
    verification (the Cognito pool already exists). See the assumption in §4.
 4. **CI/CD hardening.** Configure the `AWS_DEPLOY_ROLE_ARN` secret so GitHub Actions
    deploys via OIDC rather than long-lived keys.
-5. **Housekeeping.** Reconcile the GitHub board — several epic issues and a deployment
-   PR remain open even though the work is merged and live.
+
+_Housekeeping completed 2026-09-09: GitHub board reconciled (all 10 epics closed,
+stale PR #21 closed; 0 open issues/PRs), `PROJECT_OVERVIEW.md` + regenerated status
+published to `main`, and SSH push configured on the dev host._
 
 ---
 
@@ -166,7 +168,9 @@ Full tradeoff analysis (worker image, file size, streaming vs buffer) lives in
 requirements-were-unclear/
 ├── START_HERE.md                     # Canonical session entry point (read first)
 ├── STATUS.generated.md               # Auto-generated live status (never edit by hand)
-├── scripts/status.sh                 # Generates status from git + GitHub + live AWS
+├── scripts/
+│   ├── status.sh                     # Generates status from git + GitHub + live AWS
+│   └── reconcile-board.sh            # Closes completed epic issues / stale PRs (needs write token)
 ├── CONTRIBUTING-agent.md             # Session "definition of done" contract
 ├── PROJECT_OVERVIEW.md               # ← this document
 ├── docs/
