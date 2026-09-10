@@ -4,26 +4,24 @@
 > This report is derived from live systems (git, GitHub, AWS, HTTP probes),
 > so it reflects reality at generation time, not aspirations.
 
-**Generated:** `2026-08-31T00:30:44Z` (UTC)
+**Generated:** `2026-09-10T04:59:26Z` (UTC)
 
 ## 1. Repository State (git)
 
 | Field | Value |
 |-------|-------|
 | Current branch | `main` |
-| HEAD | e955bd4 — fix(ci): build mock-destination Lambda before CDK synth (2026-08-18 19:30:07 -0700) |
+| HEAD | 851a616 — docs: add PROJECT_OVERVIEW.md (status, decisions, assumptions, next steps) (2026-09-09 21:45:35 -0700) |
 | Commits ahead of origin/main | 0 |
 | Commits behind origin/main | 0 |
-| Uncommitted changes | 4 file(s) ⚠️ |
-| Untracked files | 4 ⚠️ |
+| Uncommitted changes | 2 file(s) ⚠️ |
+| Untracked files | none ✅ |
 
 <details><summary>Uncommitted / untracked detail</summary>
 
 ```
-?? CONTRIBUTING-agent.md
-?? START_HERE.md
-?? STATUS.generated.md
-?? scripts/
+ M CONTRIBUTING-agent.md
+ M STATUS.generated.md
 ```
 </details>
 
@@ -71,8 +69,8 @@ Account `930330383608`, region `us-east-1`, profile `dev`.
 
 | Service | Desired | Running | Status |
 |---------|---------|---------|--------|
-| `DocBridge-Compute-ApiServiceC9037CF0-2HQ0m4epupPE` | 1 | 1 | ACTIVE ✅ |
-| `DocBridge-Compute-WorkerService99815FA9-Azckdl4SxMAR` | 1 | 1 | ACTIVE ✅ |
+| `DocBridge-Compute-ApiServiceC9037CF0-2HQ0m4epupPE` | 1 | 2 | ACTIVE ⚠️ |
+| `DocBridge-Compute-WorkerService99815FA9-Azckdl4SxMAR` | 1 | 2 | ACTIVE ⚠️ |
 
 **Mock destination endpoint:** `https://6nn7dftjsk.execute-api.us-east-1.amazonaws.com/prod/upload`
 

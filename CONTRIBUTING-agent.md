@@ -54,6 +54,20 @@ should update the narrative to match.
 
 _Newest first. Keep entries to ~3 lines: Done / Next / Blockers._
 
+### 2026-09-09
+- **Done:** Added `PROJECT_OVERVIEW.md` (status/decisions/assumptions/next steps) and
+  pushed to `main` (commit 851a616). Confirmed auth model = mock `x-user-id` header
+  (code in `middleware/auth.ts`; Cognito JWT is a future "in production" note) and
+  documented it as the source of truth. Regenerated `STATUS.generated.md`. Set up SSH
+  push (origin switched to SSH URL); fixed a broken `dev` AWS profile so `status.sh`
+  now reports true CloudFront/ECS state.
+- **Next:** Reconcile GitHub board — close epic issues #1,2,4,5,6,7,8,10 and PR #21.
+  This session could NOT do it: the fine-grained PAT is read-only for the Issues/PRs
+  API (git push works over SSH, but `gh issue/pr close` returns "Resource not
+  accessible by personal access token"). Run the reconciliation under a token with
+  Issues+PRs write, or close them via the web UI.
+- **Blockers:** PAT lacks Issues/Pull-requests write permission.
+
 ### 2026-08-30 (setup)
 - **Done:** Added self-updating status system — `scripts/status.sh`,
   `STATUS.generated.md`, `START_HERE.md`, this contract. Verified live: frontend
