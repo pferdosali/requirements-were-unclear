@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth';
+import { AuthenticatedRequest, requireUploadAccess } from '../middleware/auth';
 import { resolveUserTeam } from '../services/team-service';
 import { generatePresignedUpload, confirmUpload, UploadRequest } from '../services/upload-service';
 
@@ -8,15 +8,16 @@ export const uploadRouter = Router();
 uploadRouter.get('/me', async (req: AuthenticatedRequest, res: Response) => {
   const user = req.user!;
   const team = await resolveUserTeam(user.userId);
-  res.json({ user, team });
+  // Expose the resolved access so the SPA can gate navigation/upload (ADR-0014).
+  res.json({ user: { userId: user.userId, email: user.email }, team, access: user.access });
 });
 
 /**
  * POST /api/upload/presign
- * Request a presigned S3 URL for direct file upload.
+ * Request a presigned S3 URL for direct file upload. Requires upload access.
  * Body: { fileName, contentType, fileSizeBytes }
  */
-uploadRouter.post('/upload/presign', async (req: AuthenticatedRequest, res: Response) => {
+uploadRouter.post('/upload/presign', requireUploadAccess, async (req: AuthenticatedRequest, res: Response) => {
   const { fileName, contentType, fileSizeBytes } = req.body as UploadRequest;
 
   if (!fileName || !fileSizeBytes) {

@@ -75,6 +75,25 @@ A clinical document upload orchestration platform. Users upload files once — t
 
 ---
 
+## Documentation
+
+Documentation is split between **collaboration docs** (business/engineering, kept as Markdown
+source of truth and exported to `.docx` for Google Docs) and **software docs** (standard GitHub
+docs in this repo).
+
+| Doc | Path | Audience |
+|---|---|---|
+| Blueprint (PAS-001) | [`docs/blueprint/DocBridge-Blueprint.md`](docs/blueprint/DocBridge-Blueprint.md) | Business owners, managers |
+| Technical Specification | [`docs/tech-spec/DocBridge-Technical-Specification.md`](docs/tech-spec/DocBridge-Technical-Specification.md) | Engineers, Jira breakdown |
+| Architecture Decision Records | [`docs/adr/`](docs/adr/) | Engineers |
+| Architecture | [`docs/architecture.md`](docs/architecture.md) | Engineers |
+| Runbook | [`docs/runbook.md`](docs/runbook.md) | On-call / operators |
+| Contributing | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contributors |
+| Agent memory | [`AGENT_MEMORY.md`](AGENT_MEMORY.md) | AI agents / new sessions |
+
+`.docx` reflections are generated into `docs/generated/` via `scripts/build-docs.sh` (pandoc).
+Edit the Markdown; never hand-edit the `.docx`.
+
 ## Repository Structure
 
 ```
