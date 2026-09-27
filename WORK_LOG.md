@@ -103,3 +103,27 @@ Fast-forwarded `e955bd4a..cccce181`. Local `main` now even with `origin/main`.
 - GitHub standard docs (README/CONTRIBUTING/architecture/runbook); Dev/Prod CI workflows; Cognito integration (frontend+API+infra, 2 seeded users, Google IdP, allow/deny); verify tsc+test+synth; open PR into main (approval gate). Do NOT push to main directly.
 
 ---
+
+## Session: 2026-09-27 (Part 2: implementation + verify + PR)
+
+**Goal:** Implement pipelines + Cognito + docx generation; verify; commit; push; open PR into main.
+
+### Commands & results (grounded)
+- Installed pandoc static binary to `~/.local/bin` (no sudo). `scripts/build-docs.sh` → 3 `.docx` in `docs/generated/` (Blueprint 625KB w/ embedded HLD).
+- API: rewrote `middleware/auth.ts` (Cognito JWT via `aws-jwt-verify`, dev `x-user-id` fallback), added `services/access-control.ts` + `requireUploadAccess`, guarded upload, `/api/me` exposes access. `npx jest --ci` → **100 passed / 11 suites**.
+- Infra: env-aware `bin/infra.ts` (`-c env=dev|prod`), `auth-stack.ts` (per-env pool + Hosted UI + Google IdP), `compute-stack.ts` (env cluster). `cdk synth` dev **and** prod → OK.
+- Frontend: env-driven `auth.ts` + `signInWithGoogle`; `.env.*` updated; `jobs.ts` access type. `npx vite build` → **OK (2070 modules)**.
+- Workflows: `ci.yml`, `deploy-dev.yml`, `deploy-prod.yml` (approval env). YAML validated (python yaml.safe_load) → all OK.
+- Reconciled ADR-0014 + tech-spec to match implemented default-allow / user-b-deny.
+
+### Git
+- Branch `feat/docs-restructure-and-cicd-cognito`, commit `3344c81e`, pushed with `-u`.
+- Opened **PR #23 → main** (did NOT push to main directly, per git safety). Tree clean.
+
+### Rationale
+- Docs describe reality; format matches examples. One-account/two-env via env-suffixed stacks (user decision 3). Feature branch + PR + approval gate (user decision 4). `.env.*` hold Cognito pool/client IDs = public config, not secrets (ADR-0012).
+
+### Follow-ups (documented in PR, non-blocking)
+- Visual login UI wiring into App.tsx/NavBar.tsx; fill prod Cognito env after prod Auth deploys; set GH Environment reviewers + AWS_DEPLOY_ROLE_ARN; seed user-a/user-b.
+
+---
