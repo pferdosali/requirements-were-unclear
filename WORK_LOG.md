@@ -127,3 +127,46 @@ Fast-forwarded `e955bd4a..cccce181`. Local `main` now even with `origin/main`.
 - Visual login UI wiring into App.tsx/NavBar.tsx; fill prod Cognito env after prod Auth deploys; set GH Environment reviewers + AWS_DEPLOY_ROLE_ARN; seed user-a/user-b.
 
 ---
+
+## Session: 2026-09-27 (Local test of Cognito auth + allow/deny)
+
+**Goal:** Let the user test login locally (Option B — no new dev infra). Seed 2 users, run API+FE, verify.
+
+### Commands & results
+- Confirmed only old `DocBridge-*` stacks exist (no `DocBridge-dev-*`) → deploying dev = full new infra + cost; chose local test instead (user agreed).
+- `admin-create-user` + `admin-set-user-password` for user-a@docbridge.local (allow) and user-b@docbridge.local (deny). Both CONFIRMED. Password = `DocBridge2024!` (matches FE constant).
+- Started API :3000 (Cognito env set, ALLOW_DEV_AUTH_HEADER off): health 200, no-auth /api/me 401.
+- Started FE :5173 (vite, proxies /api→:3000). Added user-a/user-b to App.tsx PERSONAS.
+- Got real ID tokens via SRP (amazon-cognito-identity-js). **Verified** (direct + via proxy):
+  - user-a: /api/me 200 canUpload:true; presign **201**.
+  - user-b: /api/me 200 canUpload:false; presign **403** 'Upload access denied'.
+  - garbage token: **401**.
+
+### Rationale
+- API access map matches by email (demo users' Cognito sub != user-a/b). ALLOW_DEV_AUTH_HEADER off = real JWT path only.
+
+### Handover
+- Browser: http://localhost:5173 → click "User A — Allow" or "User B — Deny". Password handled by app (DocBridge2024!).
+- Credentials: user-a@docbridge.local / user-b@docbridge.local, password DocBridge2024!.
+- Servers are backgrounded; App.tsx persona addition is an uncommitted local demo change.
+
+---
+
+## Session: 2026-09-28 (Save progress / checkpoint)
+
+**Goal:** Persist progress so a future session can resume from here.
+
+### Actions
+- Verified local servers still up (api:3000 200, fe:5173 200) and branch state.
+- Updated `AGENT_MEMORY.md`: last-updated 2026-09-28, new handoff entry (session 3), added §9
+  "Restart the local demo" with exact commands + demo credentials.
+- Decided to commit the `App.tsx` demo personas (user-a/user-b) to the branch so the demo state
+  isn't stranded as a local-only change.
+
+### Resume pointers
+- Branch `feat/docs-restructure-and-cicd-cognito`; PR #23 → main open.
+- Local demo restart: see AGENT_MEMORY.md §9. Users: user-a/user-b @docbridge.local / DocBridge2024!.
+- Next options: stand up real DocBridge-dev-* (adds Cognito env vars to compute-stack first) OR
+  keep local; optionally add typed login form; then merge PR #23.
+
+---

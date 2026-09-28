@@ -5,7 +5,7 @@
 > which must be run at the **end of every session** on the assumption the session can end at any
 > moment. If this file and code disagree, trust the code and fix this file.
 
-**Last updated:** 2026-09-27
+**Last updated:** 2026-09-28
 
 ---
 
@@ -96,6 +96,20 @@ aws sts get-caller-identity              # expect account 930330383608, user/dev
 
 ## 8. Handoff log (newest first, ~3 lines each)
 
+### 2026-09-28 (session 3 — local Cognito test + save point)
+- **Done:** Seeded 2 demo users in live pool `us-east-1_jCnHbWlwq`: `user-a@docbridge.local`
+  (allow upload) and `user-b@docbridge.local` (deny upload), password `DocBridge2024!`
+  (matches frontend `DEFAULT_PASSWORD`). Added both as personas in `App.tsx` login list.
+  Ran API :3000 (Cognito env set, `ALLOW_DEV_AUTH_HEADER` off) + frontend :5173 (Vite proxy).
+  **Verified end-to-end with real SRP JWTs** (direct + via proxy): user-a `/api/me` 200
+  canUpload:true & presign **201**; user-b canUpload:false & presign **403**; bad token **401**.
+- **Next:** Decide whether to stand up the real `DocBridge-dev-*` environment (full new infra,
+  ~$ + ~30 min) or keep local. Wire a typed email/password login form (current UI is
+  click-a-persona). Add Cognito env vars to `compute-stack.ts` container defs before any dev
+  deploy (NOT done yet — dev API wouldn't verify JWTs without them). Then merge PR #23.
+- **Blockers:** none. PR #23 open (`feat/docs-restructure-and-cicd-cognito` → `main`).
+- **To resume the local demo:** see §9 "Restart the local demo".
+
 ### 2026-09-27 (session 2 — implementation)
 - **Done:** Implemented all of Release 2. Env-aware CDK (`-c env=dev|prod` → `DocBridge-dev/prod-*`);
   AuthStack per-env pool + Hosted UI + optional Google IdP. Three GH workflows (CI, deploy-dev,
@@ -117,3 +131,46 @@ aws sts get-caller-identity              # expect account 930330383608, user/dev
 - **Next:** GitHub standard docs; Dev/Prod pipelines; Cognito integration (frontend+API+infra,
   2 seeded users, Google IdP, allow/deny); run tests/synth; open PR into `main` (approval gate).
 - **Blockers:** none known. `dev` AWS profile has no creds (default profile works).
+
+## 9. Restart the local demo (Cognito login + allow/deny)
+
+Two demo users already exist in the live pool `us-east-1_jCnHbWlwq`:
+
+| User | Email | Password | Behavior |
+|---|---|---|---|
+| User A | `user-a@docbridge.local` | `DocBridge2024!` | allow browse + upload |
+| User B | `user-b@docbridge.local` | `DocBridge2024!` | browse only, upload **denied** (403) |
+
+Start the API (JWT verification on, dev header fallback off):
+
+```bash
+cd implementation/api
+export COGNITO_USER_POOL_ID=us-east-1_jCnHbWlwq \
+       COGNITO_CLIENT_ID=4ocgklslli9bqhj9b13dmdf3j3 \
+       AWS_REGION=us-east-1 PORT=3000
+unset ALLOW_DEV_AUTH_HEADER
+npx ts-node src/server.ts        # health: curl -s localhost:3000/health
+```
+
+Start the frontend (Vite proxies /api + /ws to :3000):
+
+```bash
+cd implementation/frontend
+npx vite --host                  # open http://localhost:5173, click "User A" / "User B"
+```
+
+Quick API verification (real token via SRP), run from `implementation/frontend`:
+
+```bash
+# get-token.cjs: authenticateUser via amazon-cognito-identity-js, prints ID token
+TA=$(node get-token.cjs user-a@docbridge.local 'DocBridge2024!')
+curl -s localhost:3000/api/me -H "Authorization: Bearer $TA"     # canUpload:true
+curl -s -o /dev/null -w "%{http_code}\n" -X POST localhost:3000/api/upload/presign \
+  -H "Authorization: Bearer $TA" -H "Content-Type: application/json" \
+  -d '{"fileName":"a.pdf","contentType":"application/pdf","fileSizeBytes":1024}'   # 201
+```
+
+Notes:
+- Login screen is a click-a-persona list (uses `DEFAULT_PASSWORD` in `App.tsx`), not a typed form.
+- Full job create/submit needs Postgres/S3 (not run locally); this demo covers login + access control.
+- No new AWS infra was created — only the 2 Cognito users.

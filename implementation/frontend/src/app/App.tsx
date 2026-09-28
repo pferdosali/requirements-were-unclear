@@ -24,6 +24,8 @@ interface Persona {
 }
 
 const PERSONAS: Persona[] = [
+  { id: "user-a", name: "User A — Allow (upload)", email: "user-a@docbridge.local", role: "Demo · Upload allowed", team: "Team Alpha", region: "US-East", avatar: "UA", backendUserId: "user-a" },
+  { id: "user-b", name: "User B — Deny (browse only)", email: "user-b@docbridge.local", role: "Demo · Upload denied", team: "Team Alpha", region: "US-East", avatar: "UB", backendUserId: "user-b" },
   { id: "user-1", name: "Dr. Sarah Chen", email: "sarah.chen@clinvault.health", role: "Principal Investigator", team: "Team Alpha", region: "US-East", avatar: "SC", backendUserId: "user-1" },
   { id: "user-2", name: "Dr. Marcus Weber", email: "marcus.weber@clinvault.health", role: "Clinical Director", team: "Team Beta", region: "EU-West", avatar: "MW", backendUserId: "user-2" },
   { id: "user-3", name: "Dr. Aiko Tanaka", email: "aiko.tanaka@clinvault.health", role: "Data Reviewer", team: "Team Alpha", region: "US-East", avatar: "AT", backendUserId: "user-3" },
