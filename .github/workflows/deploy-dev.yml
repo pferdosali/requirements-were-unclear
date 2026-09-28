@@ -1,0 +1,78 @@
+name: Deploy Dev
+
+on:
+  push:
+    branches: [dev]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: docbridge
+  ENV_NAME: dev
+  ECS_CLUSTER: docbridge-dev
+
+jobs:
+  deploy:
+    name: Build, Push & Deploy (dev)
+    runs-on: ubuntu-latest
+    # GitHub Environment 'dev' — configure protection rules here if desired.
+    environment: dev
+    defaults:
+      run:
+        working-directory: implementation/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker build -t "$IMAGE" -t "$ECR_REGISTRY/$ECR_REPOSITORY:dev-latest" .
+          docker push "$IMAGE"
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:dev-latest"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy API + Worker services
+        run: |
+          for NAME in ApiService WorkerService; do
+            SVC=$(aws ecs list-services --cluster "$ECS_CLUSTER" \
+              --query "serviceArns[?contains(@, '$NAME')]" --output text | xargs -n1 basename)
+            echo "Deploying $SVC on $ECS_CLUSTER"
+            aws ecs update-service --cluster "$ECS_CLUSTER" --service "$SVC" \
+              --force-new-deployment --region "$AWS_REGION" >/dev/null
+          done
+
+      - name: Wait for API service stability
+        run: |
+          SVC=$(aws ecs list-services --cluster "$ECS_CLUSTER" \
+            --query "serviceArns[?contains(@, 'ApiService')]" --output text | xargs -n1 basename)
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$SVC" --region "$AWS_REGION"
+
+      - name: Publish deployment summary (visibility)
+        run: |
+          {
+            echo "### Deployed to DEV :rocket:"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Environment | \`dev\` (cluster \`$ECS_CLUSTER\`) |"
+            echo "| Commit | \`${{ github.sha }}\` |"
+            echo "| Image | \`${{ steps.build-image.outputs.image }}\` |"
+            echo "| Actor | @${{ github.actor }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

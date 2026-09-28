@@ -10,6 +10,7 @@ import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
 
 interface ComputeStackProps extends cdk.StackProps {
+  envName: string;
   vpc: ec2.Vpc;
   apiServiceSg: ec2.SecurityGroup;
   workerServiceSg: ec2.SecurityGroup;
@@ -31,7 +32,7 @@ export class ComputeStack extends cdk.Stack {
 
     this.cluster = new ecs.Cluster(this, 'DocBridgeCluster', {
       vpc: props.vpc,
-      clusterName: 'docbridge',
+      clusterName: `docbridge-${props.envName}`,
     });
 
     // Shared ECR image — different entrypoints for API vs Worker

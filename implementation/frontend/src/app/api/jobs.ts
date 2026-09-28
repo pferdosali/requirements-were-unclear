@@ -68,6 +68,11 @@ export async function retryTask(taskId: string): Promise<void> {
 
 // --- User info ---
 
+export interface UserAccess {
+  allowedRoutes: string[];
+  canUpload: boolean;
+}
+
 export interface UserInfo {
   user: {
     userId: string;
@@ -78,6 +83,8 @@ export interface UserInfo {
     name: string;
     region: string;
   };
+  /** Per-user allow/deny access (ADR-0014). Drives navigation + upload gating. */
+  access?: UserAccess;
 }
 
 export async function getMe(): Promise<UserInfo> {
