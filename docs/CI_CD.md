@@ -10,7 +10,7 @@ Use this station for development and validation, GitHub Actions for builds and d
 4. Deploy that digest and frontend artifact to staging. Wait for both services to stabilize, verify the expected task revisions (including detection of ECS rollback), publish frontend/config, invalidate CloudFront, and run smoke checks.
 5. The production job waits for GitHub environment approval. Review staging manually, then approve promotion of the same digest and compiled frontend artifact. Environment-specific Cognito IDs are supplied by `/config.js`.
 
-Required reviewers must be configured in GitHub; naming an environment in YAML does not itself enable approval. Configure this before enabling the workflow. The build job checks the production environment via the GitHub API and fails closed if no required reviewers exist; allow the workflow token to read environment settings. The current smoke test checks frontend availability and `/api/me`; it is not an upload/delivery acceptance test. Run a synthetic upload and check destination contents in staging before approval. Update the smoke test when backend JWT authentication replaces mock auth.
+Required reviewers must be configured in GitHub; naming an environment in YAML does not itself enable approval. Configure this before enabling the workflow. The build job checks the production environment via the GitHub API and fails closed if no required reviewers exist; allow the workflow token to read environment settings. The deployment smoke test checks frontend availability and `/api/me`. Staging additionally runs `staging-acceptance.py`, which performs synthetic upload, confirmation, job submission, checksummed delivery completion, and ownership isolation across three regions. Before approval, local acceptance with `--bucket` also verifies delivered bytes in the staging bucket. Update the smoke test when backend JWT authentication replaces mock auth.
 
 ## GitHub setup
 
@@ -79,3 +79,19 @@ AWS_PROFILE=default python3 scripts/configure-deployment-access.py --environment
 After approval of [DEPLOYMENT_ACCESS_PLAN.md](DEPLOYMENT_ACCESS_PLAN.md), use the same command with `--apply` to configure scoped roles and environment variables/secrets. Never enable `DEPLOYMENTS_ENABLED` until staging is ready and both deployment roles are configured. `--apply` does not deploy applications or enable the release switch.
 
 Local provisioning outputs, inventories, logs, and task-specific Docker authentication files stay in `.local/`; current state and next steps are saved in `PROJECT_OVERVIEW.md` and `WORK_LOG.md`. Upstream removed the previous generated-status system; do not recreate it merely to satisfy outdated references.
+
+Staging acceptance (synthetic content only):
+
+```bash
+AWS_PROFILE=default python3 scripts/staging-acceptance.py --origin https://<staging-distribution>.cloudfront.net --bucket <staging-blob-bucket> --output .local/staging-acceptance.json
+```
+
+The helper refuses the known production origin. CI uses endpoint checks without document-bucket access; the local operator performs delivered-byte verification. Test files/jobs remain available in staging for inspection.
+
+Seed staging after its API and CORS are ready:
+
+```bash
+AWS_PROFILE=default python3 scripts/seed-staging.py --origin https://<staging-distribution>.cloudfront.net
+```
+
+This discovers only staging stacks, verifies the origin/table/account, seeds region and destination-tree IDs into staging routing, and creates five Cognito demo records with invitations suppressed. Temporary credentials are random and discarded; reset them for real SRP sign-in testing. The existing application's mock-identity fallback remains in place.

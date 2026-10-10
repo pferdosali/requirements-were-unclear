@@ -10,49 +10,30 @@ This applies to **AI agents and humans alike**. It is short on purpose.
 
 ## Start of session
 
-1. Ensure you are in the canonical clone (`~/docbridge`) on `main`.
-2. Run `./scripts/status.sh` and read `STATUS.generated.md`. That is ground truth.
-3. Read the **Handoff** note at the bottom of this file (last session's summary).
-
----
+1. Read `PROJECT_OVERVIEW.md`, the newest handoff below, and `WORK_LOG.md`.
+2. Check `git status`, current GitHub runs, and the relevant live AWS resources. This station currently uses AWS profile `default` in `us-east-1`.
+3. Use `docs/CI_CD.md` for pipeline configuration and staging activation. The previous `START_HERE.md`, `STATUS.generated.md`, and status script were removed upstream and should not be assumed present.
 
 ## End of session — Definition of Done
 
-Do **all** of these before you consider work finished. Each is verifiable.
-
-- [ ] **Committed.** No meaningful uncommitted changes. Run `git status` — clean,
-      or only intentional WIP you explicitly call out in the handoff.
-- [ ] **No stranded files.** Anything real (code, config templates, docs) is
-      tracked. Secrets stay untracked/gitignored — commit a `*.template` instead.
-- [ ] **Pushed to `main`.** `git push origin main`. `status.sh` must show
-      `ahead of origin/main: 0`. Local-only commits = stranded work = the bug.
-- [ ] **Status regenerated.** Run `./scripts/status.sh` and commit the updated
-      `STATUS.generated.md`. It must reflect what you just did.
-- [ ] **Tests/typecheck pass** for anything you touched
-      (`cd implementation/api && npm test && npx tsc --noEmit`).
-- [ ] **Issues & PRs reconciled.** Close GitHub issues that are actually done;
-      close/merge stale PRs. The board should match `## 4. Live Deployment` in the
-      generated status. (Historically the board has lagged reality — fix it.)
-- [ ] **Handoff updated.** Add a dated 3-line entry below: what changed, what's
-      next, any blockers.
-
-> If a verification step is blocked (e.g. no AWS creds this session), say so
-> explicitly in the handoff rather than leaving it silently unverified.
-
----
-
-## Why prose alone fails (read once)
-
-`STATUS.generated.md` is derived from **git + GitHub + live AWS probes**, so it
-cannot lie about the current state. Narrative docs (`latest_updates.md`) are for
-*history and rationale*. When they disagree, the generated file wins — and you
-should update the narrative to match.
+- Commit and publish authorized changes; preserve unrelated work and call out intentional WIP.
+- Run checks appropriate to the change. Local/CI validation: `bash scripts/validate.sh`.
+- Update `PROJECT_OVERVIEW.md`, append timestamped practical results to `WORK_LOG.md`, and add a dated handoff below with Done / Next / Blockers.
+- Verify GitHub/AWS changes directly. Record failures as unverified rather than inferring successful state from empty output.
+- Reconcile relevant issues/PRs when necessary. Never publish credentials or exact private deployment-access inventories; retain them under gitignored `.local/`.
+- Keep production promotion behind its GitHub environment approval gate. `DEPLOYMENTS_ENABLED` stays false until staging and scoped roles are verified.
 
 ---
 
 ## Handoff Log
 
 _Newest first. Keep entries to ~3 lines: Done / Next / Blockers._
+
+### 2026-10-10 (pipeline activation)
+- **Done:** Published staging-first CI pipeline; created main-only GitHub environments and production reviewer; identified working AWS profile `default`; pushed a tested staging image and started staging stack provisioning. Updated overview, deployment guide, work log, and private access plan.
+- **Next:** Finish staging/CORS/routing/test-user setup; verify synthetic delivery and CI; apply scoped OIDC roles only after user approval; enable releases and stop at the production approval gate.
+- **Blockers:** IAM role creation awaits explicit user approval after automatic review rejection. Exact access policies remain gitignored in `.local/DEPLOYMENT_ACCESS_PLAN.md`; the public document is a summary.
+
 
 ### 2026-09-09
 - **Done:** Added `PROJECT_OVERVIEW.md` (status/decisions/assumptions/next steps) and

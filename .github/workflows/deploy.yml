@@ -43,6 +43,11 @@ jobs:
           COGNITO_USER_POOL_ID: ${{ vars.COGNITO_USER_POOL_ID }}
           COGNITO_CLIENT_ID: ${{ vars.COGNITO_CLIENT_ID }}
         run: bash scripts/deploy-release.sh
+      - name: Exercise staging upload, delivery, and user isolation
+        if: inputs.environment == 'staging'
+        env:
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+        run: python3 scripts/staging-acceptance.py --origin "$FRONTEND_URL" --output release/deployment/staging-acceptance.json
       - name: Preserve deployment and rollback record
         if: always()
         uses: actions/upload-artifact@v4

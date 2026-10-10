@@ -13,7 +13,8 @@ _Start here for saved project state. Deployment setup is documented in [docs/CI_
 - AWS account is `930330383608`, region `us-east-1`. On this station use `AWS_PROFILE=default`; profile `dev` currently has no credentials.
 - Current remote documentation deletions are preserved. `START_HERE.md`, `STATUS.generated.md`, and `scripts/status.sh` were removed upstream; use this overview and direct verification commands instead.
 - Superseded local edits to the removed entry point/status script are preserved in a named git stash. Pre-existing architecture HTML files remain untouched.
-- Staging provisioning, scoped OIDC roles, environment resource variables, and remote CI/release verification are in progress. Production deployment requires user review after staging passes.
+- Pipeline is published to main. [Remote CI run 38073024504](https://github.com/pferdosali/requirements-were-unclear/actions/runs/38073024504) passed; build/deploy jobs were correctly skipped while deployments are disabled.
+- Staging provisioning and acceptance tests are in progress. Scoped CI OIDC roles await user approval after automatic approval review rejected their persistent privilege grants. Exact policies are local in `.local/DEPLOYMENT_ACCESS_PLAN.md`. Production deployment requires separate GitHub review after staging passes.
 
 The sections below retain historical design context. Claims of frontend wiring or regional storage completion should be checked against code and the current-session state above.
 
