@@ -418,16 +418,16 @@ function LoginScreen({ onLogin }: { onLogin: (p: Persona) => Promise<void> }) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: "#0a1929" }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: "#fce7f3" }}>
       <div className="w-full max-w-md p-8">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-4">
-            <div className="p-2 rounded-lg" style={{ background: "rgba(13,110,170,0.35)" }}>
-              <FlaskConical size={24} style={{ color: "#5dade2" }} />
+            <div className="p-2 rounded-lg" style={{ background: "rgba(219,39,119,0.15)" }}>
+              <FlaskConical size={24} style={{ color: "#be185d" }} />
             </div>
-            <span className="text-2xl font-semibold text-white">ClinVault</span>
+            <span className="text-2xl font-semibold text-pink-950">ClinVault</span>
           </div>
-          <p className="text-sm" style={{ color: "#5a7490" }}>
+          <p className="text-sm" style={{ color: "#9d174d" }}>
             Sign in with your credentials
           </p>
           {error && (
@@ -445,33 +445,33 @@ function LoginScreen({ onLogin }: { onLogin: (p: Persona) => Promise<void> }) {
               disabled={loggingIn !== null}
               className="w-full flex items-center gap-4 p-4 rounded-lg text-left transition-all disabled:opacity-50"
               style={{
-                background: loggingIn === p.id ? "rgba(13,110,170,0.2)" : "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                background: loggingIn === p.id ? "rgba(219,39,119,0.2)" : "rgba(255,255,255,0.65)",
+                border: "1px solid rgba(190,24,93,0.18)",
               }}
-              onMouseEnter={(e) => { if (!loggingIn) { e.currentTarget.style.background = "rgba(13,110,170,0.15)"; e.currentTarget.style.borderColor = "rgba(13,110,170,0.4)"; } }}
-              onMouseLeave={(e) => { if (!loggingIn) { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; } }}
+              onMouseEnter={(e) => { if (!loggingIn) { e.currentTarget.style.background = "rgba(219,39,119,0.12)"; e.currentTarget.style.borderColor = "rgba(219,39,119,0.4)"; } }}
+              onMouseLeave={(e) => { if (!loggingIn) { e.currentTarget.style.background = "rgba(255,255,255,0.65)"; e.currentTarget.style.borderColor = "rgba(190,24,93,0.18)"; } }}
             >
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium"
-                style={{ background: "rgba(13,110,170,0.3)", color: "#5dade2" }}
+                style={{ background: "rgba(219,39,119,0.15)", color: "#be185d" }}
               >
                 {loggingIn === p.id ? <Loader2 size={16} className="animate-spin" /> : p.avatar}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white">{p.name}</p>
-                <p className="text-xs truncate" style={{ color: "#5a7490" }}>
+                <p className="text-sm font-medium text-pink-950">{p.name}</p>
+                <p className="text-xs truncate" style={{ color: "#9d174d" }}>
                   {p.role} · {p.team} · {p.region}
                 </p>
               </div>
-              <div className="text-xs px-2 py-1 rounded" style={{ background: "rgba(14,165,160,0.15)", color: "#4dd0cb" }}>
+              <div className="text-xs px-2 py-1 rounded" style={{ background: "rgba(219,39,119,0.1)", color: "#9d174d" }}>
                 {p.region}
               </div>
             </button>
           ))}
         </div>
 
-        <p className="text-center text-xs mt-6" style={{ color: "#3d5a72" }}>
-          Authenticated via AWS Cognito · All credentials: <code style={{ color: "#5dade2" }}>DocBridge2024!</code>
+        <p className="text-center text-xs mt-6" style={{ color: "#9d174d" }}>
+          Authenticated via AWS Cognito · All credentials: <code style={{ color: "#be185d" }}>DocBridge2024!</code>
         </p>
       </div>
     </div>

@@ -6,6 +6,8 @@ _Start here for saved project state. Deployment setup is documented in [docs/CI_
 
 ### Current session state
 
+- Latest staging visual test: login uses a pink background and matching accents/text. Built successfully and published with the staging-only operator helper; remote staging bundle matches the local build. Production still serves its previous bundle. This was an operator deployment while automated releases remain disabled.
+
 - Implemented local validation → automatic staging → approved production promotion using one image digest and compiled frontend artifact.
 - Verified locally: 93 API tests, 3 infrastructure tests and 4 deployment/helper tests, builds/typechecks, CDK synthesis for both environments, and Docker build.
 - GitHub environments `build`, `staging`, and `production` exist, restricted to `main`; production requires reviewer `pferdosali` and allows self-review.

@@ -29,6 +29,11 @@ This applies to **AI agents and humans alike**. It is short on purpose.
 
 _Newest first. Keep entries to ~3 lines: Done / Next / Blockers._
 
+### 2026-10-10 (pink login staging test)
+- **Done:** Changed only the login screen palette to pink; frontend build passed; staging publication/cache invalidation completed; live staging bundle matches the build and production does not contain the pink change.
+- **Next:** Review the visual test in staging; CI activation still requires scoped role approval.
+- **Blockers:** Automated releases remain disabled pending the previously requested IAM approval; operator staging deployment succeeded.
+
 ### 2026-10-10 (pipeline activation)
 - **Done:** Published staging-first CI; created GitHub environments and production reviewer; provisioned all eight isolated staging stacks; published frontend/CORS and seeded 25 routes/five demo users. Fixed API-error masking with a frontend-only SPA rewrite on staging. Three-region delivery, ownership isolation, delivered bytes and site probes passed; remote CI 38075421799 passed.
 - **Next:** Apply scoped OIDC roles only after approval, enable releases, and verify a staged pipeline run before production review. Production Edge requires its own reviewed infrastructure update.
