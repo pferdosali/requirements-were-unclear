@@ -55,14 +55,15 @@ def run(origin, bucket=None, timeout=240):
             if job['status'] in ['failed', 'partial_success'] or time.monotonic() >= deadline:
                 raise RuntimeError(f"Staging job {job_id} ended with {job['status']}")
             time.sleep(3)
-        other_user = 'user-2' if user == 'user-1' else 'user-1'
-        try:
-            api(origin, other_user, f'/jobs/{job_id}')
-        except error.HTTPError as err:
-            if err.code not in [403, 404]:
-                raise
-        else:
-            raise RuntimeError('Another user could read the synthetic job')
+        other_users = {'user-1': ['user-2', 'user-3'], 'user-2': ['user-1', 'user-5'], 'user-4': ['user-1']}[user]
+        for other_user in other_users:
+            try:
+                api(origin, other_user, f'/jobs/{job_id}')
+            except error.HTTPError as err:
+                if err.code not in [403, 404]:
+                    raise
+            else:
+                raise RuntimeError('Another user could read the synthetic job')
         delivered_key = f'destinations/{delivered_path}/delivered/{filename}'
         if bucket:
             with tempfile.TemporaryDirectory() as directory:

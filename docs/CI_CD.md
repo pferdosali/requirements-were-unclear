@@ -95,3 +95,11 @@ AWS_PROFILE=default python3 scripts/seed-staging.py --origin https://<staging-di
 ```
 
 This discovers only staging stacks, verifies the origin/table/account, seeds region and destination-tree IDs into staging routing, and creates five Cognito demo records with invitations suppressed. Temporary credentials are random and discarded; reset them for real SRP sign-in testing. The existing application's mock-identity fallback remains in place.
+
+For the initial staging bootstrap while scoped CI roles are awaiting approval, an operator can download the successful workflow's `frontend-<commit>` artifact under `.local/frontend/` and run:
+
+```bash
+AWS_PROFILE=default python3 scripts/publish-staging-frontend.py --artifact-dir .local/frontend
+```
+
+This helper reads staging Edge/Auth outputs, compares against the live production distribution ID without embedding it, and refuses production, publishes assets before HTML, writes staging runtime configuration, and waits for CloudFront invalidation. Normal releases continue through the GitHub pipeline after activation.
