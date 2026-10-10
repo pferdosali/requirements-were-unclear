@@ -12,26 +12,31 @@ import { MockDestinationStack } from '../lib/mock-destination-stack';
 
 const app = new cdk.App();
 
+const target = app.node.tryGetContext('environment') || 'production';
+if (!['production', 'staging'].includes(target)) throw new Error('environment must be production or staging');
+const prefix = target === 'staging' ? 'DocBridge-Staging' : 'DocBridge';
+cdk.Tags.of(app).add('Environment', target);
+
 const env = {
   account: process.env.CDK_DEFAULT_ACCOUNT || '930330383608',
   region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
 };
 
-const networking = new NetworkingStack(app, 'DocBridge-Networking', { env });
+const networking = new NetworkingStack(app, `${prefix}-Networking`, { env });
 
-const auth = new AuthStack(app, 'DocBridge-Auth', { env });
+const auth = new AuthStack(app, `${prefix}-Auth`, { env });
 
-const storage = new StorageStack(app, 'DocBridge-Storage', {
+const storage = new StorageStack(app, `${prefix}-Storage`, {
   env,
   vpc: networking.vpc,
   dbSecurityGroup: networking.dbSg,
 });
 
-const messaging = new MessagingStack(app, 'DocBridge-Messaging', { env });
+const messaging = new MessagingStack(app, `${prefix}-Messaging`, { env });
 
-const routing = new RoutingStack(app, 'DocBridge-Routing', { env });
+const routing = new RoutingStack(app, `${prefix}-Routing`, { env });
 
-const compute = new ComputeStack(app, 'DocBridge-Compute', {
+const compute = new ComputeStack(app, `${prefix}-Compute`, {
   env,
   vpc: networking.vpc,
   apiServiceSg: networking.apiServiceSg,
@@ -45,11 +50,14 @@ const compute = new ComputeStack(app, 'DocBridge-Compute', {
   routingTable: routing.routingTable,
 });
 
-new EdgeStack(app, 'DocBridge-Edge', {
+new EdgeStack(app, `${prefix}-Edge`, {
   env,
   vpc: networking.vpc,
   albSg: networking.albSg,
   fargateService: compute.fargateService,
 });
 
-new MockDestinationStack(app, 'DocBridge-MockDestination', { env });
+new MockDestinationStack(app, `${prefix}-MockDestination`, {
+  env,
+  ...(target === 'staging' ? { blobBucket: storage.blobBucket } : {}),
+});

@@ -9,8 +9,9 @@ import {
   CognitoUserSession,
 } from 'amazon-cognito-identity-js';
 
-const USER_POOL_ID = 'us-east-1_jCnHbWlwq';
-const CLIENT_ID = '4ocgklslli9bqhj9b13dmdf3j3';
+const config = (window as Window & { DOCBRIDGE_CONFIG: { userPoolId: string; clientId: string } }).DOCBRIDGE_CONFIG;
+const USER_POOL_ID = config.userPoolId;
+const CLIENT_ID = config.clientId;
 
 const userPool = new CognitoUserPool({
   UserPoolId: USER_POOL_ID,

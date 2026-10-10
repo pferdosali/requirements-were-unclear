@@ -76,3 +76,8 @@ _Newest first. Keep entries to ~3 lines: Done / Next / Blockers._
   `latest_updates.md`) and close/merge stale PR #21. Confirm auth model (code uses
   `x-user-id` mock header; docs claim Cognito JWT) and update whichever is wrong.
 - **Blockers:** none.
+
+### 2026-10-10 (CI/CD pipeline implementation)
+- **Done:** Added staging-first application release workflow, immutable image promotion, production approval preflight, isolated staging CDK configuration, runtime frontend auth config, and setup/rollback guide in `docs/CI_CD.md`.
+- **Next:** Provision staging, seed staging routing/users, configure GitHub environments and AWS OIDC roles, then run a staged release and review it before production approval.
+- **Blockers:** Cloud deployment has not been performed; remote environment settings and live AWS readiness remain unverified. Local changes await commit/publish.

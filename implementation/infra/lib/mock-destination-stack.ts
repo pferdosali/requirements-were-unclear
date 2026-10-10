@@ -1,3 +1,4 @@
+import { resourceName } from './environment';
 import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigw from 'aws-cdk-lib/aws-apigateway';
@@ -17,17 +18,21 @@ import { Construct } from 'constructs';
  * Each Lambda saves received files to the S3 blob bucket under
  * destinations/{region}/delivered/{filename} for demo visibility.
  */
+interface MockDestinationProps extends cdk.StackProps {
+  blobBucket?: s3.IBucket;
+}
+
 export class MockDestinationStack extends cdk.Stack {
   public readonly regionAEndpoint: string;
   public readonly regionBEndpoint: string;
 
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: MockDestinationProps) {
     super(scope, id, props);
 
     const code = lambda.Code.fromAsset(path.join(__dirname, '../../mock-destination/dist'));
 
     // Reference the blob bucket for file storage
-    const blobBucket = s3.Bucket.fromBucketName(
+    const blobBucket = props?.blobBucket ?? s3.Bucket.fromBucketName(
       this,
       'BlobBucketRef',
       'docbridge-storage-blobstorageaeabf72d-zg6r3qbw734z',
@@ -35,7 +40,7 @@ export class MockDestinationStack extends cdk.Stack {
 
     // --- Region A: US Clinical Ops ---
     const regionAFn = new lambda.Function(this, 'MockDestinationRegionA', {
-      functionName: 'docbridge-mock-destination-region-a',
+      functionName: resourceName(this, 'docbridge-mock-destination-region-a'),
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'handler.handler',
       code,
@@ -52,7 +57,7 @@ export class MockDestinationStack extends cdk.Stack {
     blobBucket.grantWrite(regionAFn);
 
     const regionAApi = new apigw.RestApi(this, 'MockDestinationApiRegionA', {
-      restApiName: 'docbridge-mock-destination-region-a',
+      restApiName: resourceName(this, 'docbridge-mock-destination-region-a'),
       description: 'Mock destination for region-a (US Clinical Ops)',
       binaryMediaTypes: ['application/octet-stream', '*/*'],
     });
@@ -69,7 +74,7 @@ export class MockDestinationStack extends cdk.Stack {
 
     // --- Region B: EU Clinical Ops ---
     const regionBFn = new lambda.Function(this, 'MockDestinationRegionB', {
-      functionName: 'docbridge-mock-destination-region-b',
+      functionName: resourceName(this, 'docbridge-mock-destination-region-b'),
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'handler.handler',
       code,
@@ -86,7 +91,7 @@ export class MockDestinationStack extends cdk.Stack {
     blobBucket.grantWrite(regionBFn);
 
     const regionBApi = new apigw.RestApi(this, 'MockDestinationApiRegionB', {
-      restApiName: 'docbridge-mock-destination-region-b',
+      restApiName: resourceName(this, 'docbridge-mock-destination-region-b'),
       description: 'Mock destination for region-b (EU Clinical Ops)',
       binaryMediaTypes: ['application/octet-stream', '*/*'],
     });
@@ -103,7 +108,7 @@ export class MockDestinationStack extends cdk.Stack {
 
     // --- Region C: AP-Southeast Ops ---
     const regionCFn = new lambda.Function(this, 'MockDestinationRegionC', {
-      functionName: 'docbridge-mock-destination-region-c',
+      functionName: resourceName(this, 'docbridge-mock-destination-region-c'),
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'handler.handler',
       code,
@@ -120,7 +125,7 @@ export class MockDestinationStack extends cdk.Stack {
     blobBucket.grantWrite(regionCFn);
 
     const regionCApi = new apigw.RestApi(this, 'MockDestinationApiRegionC', {
-      restApiName: 'docbridge-mock-destination-region-c',
+      restApiName: resourceName(this, 'docbridge-mock-destination-region-c'),
       description: 'Mock destination for region-c (AP-Southeast Ops)',
       binaryMediaTypes: ['application/octet-stream', '*/*'],
     });

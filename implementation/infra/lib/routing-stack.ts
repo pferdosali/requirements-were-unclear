@@ -1,3 +1,4 @@
+import { resourceName } from './environment';
 import * as cdk from 'aws-cdk-lib';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import { Construct } from 'constructs';
@@ -9,7 +10,7 @@ export class RoutingStack extends cdk.Stack {
     super(scope, id, props);
 
     this.routingTable = new dynamodb.Table(this, 'RoutingConfig', {
-      tableName: 'docbridge-routing-config',
+      tableName: resourceName(this, 'docbridge-routing-config'),
       partitionKey: { name: 'destination_region', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'tenant_id', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,

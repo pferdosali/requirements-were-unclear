@@ -1,3 +1,4 @@
+import { resourceName } from './environment';
 import * as cdk from 'aws-cdk-lib';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as kms from 'aws-cdk-lib/aws-kms';
@@ -19,7 +20,7 @@ export class StorageStack extends cdk.Stack {
     super(scope, id, props);
 
     this.encryptionKey = new kms.Key(this, 'DocBridgeKey', {
-      alias: 'docbridge-encryption',
+      alias: resourceName(this, 'docbridge-encryption'),
       enableKeyRotation: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
@@ -35,7 +36,7 @@ export class StorageStack extends cdk.Stack {
         {
           allowedHeaders: ['*'],
           allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET, s3.HttpMethods.HEAD],
-          allowedOrigins: ['https://dk9dmvpe7a2yb.cloudfront.net', 'http://localhost:5173'],
+          allowedOrigins: [this.node.tryGetContext('frontendOrigin') || 'https://dk9dmvpe7a2yb.cloudfront.net', 'http://localhost:5173'],
           exposedHeaders: ['ETag', 'x-amz-request-id'],
           maxAge: 3600,
         },

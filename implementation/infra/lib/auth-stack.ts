@@ -1,3 +1,4 @@
+import { resourceName } from './environment';
 import * as cdk from 'aws-cdk-lib';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { Construct } from 'constructs';
@@ -9,7 +10,7 @@ export class AuthStack extends cdk.Stack {
     super(scope, id, props);
 
     this.userPool = new cognito.UserPool(this, 'DocBridgeUserPool', {
-      userPoolName: 'docbridge-users',
+      userPoolName: resourceName(this, 'docbridge-users'),
       selfSignUpEnabled: false,
       signInAliases: { email: true },
       standardAttributes: {
@@ -24,12 +25,14 @@ export class AuthStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    this.userPool.addClient('WebClient', {
+    const client = this.userPool.addClient('WebClient', {
       authFlows: { userSrp: true },
       oAuth: {
         flows: { authorizationCodeGrant: true },
         scopes: [cognito.OAuthScope.OPENID, cognito.OAuthScope.EMAIL],
       },
     });
+    new cdk.CfnOutput(this, 'UserPoolId', { value: this.userPool.userPoolId });
+    new cdk.CfnOutput(this, 'ClientId', { value: client.userPoolClientId });
   }
 }

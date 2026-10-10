@@ -1,3 +1,4 @@
+import { resourceName } from './environment';
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
@@ -31,12 +32,12 @@ export class ComputeStack extends cdk.Stack {
 
     this.cluster = new ecs.Cluster(this, 'DocBridgeCluster', {
       vpc: props.vpc,
-      clusterName: 'docbridge',
+      clusterName: resourceName(this, 'docbridge'),
     });
 
     // Shared ECR image — different entrypoints for API vs Worker
-    const repository = ecr.Repository.fromRepositoryName(this, 'DocBridgeRepo', 'docbridge');
-    const image = ecs.ContainerImage.fromEcrRepository(repository, 'latest');
+    const repository = ecr.Repository.fromRepositoryName(this, 'DocBridgeRepo', this.node.tryGetContext('ecrRepository') || 'docbridge');
+    const image = ecs.ContainerImage.fromEcrRepository(repository, this.node.tryGetContext('imageTag') || 'latest');
 
     // Shared environment variables
     const sharedEnv = {
@@ -46,7 +47,7 @@ export class ComputeStack extends cdk.Stack {
       TASK_QUEUE_URL: props.taskQueue.queueUrl,
       ROUTING_TABLE: props.routingTable.tableName,
       NODE_ENV: 'production',
-      AWS_REGION: 'us-east-1',
+      AWS_REGION: this.region,
     };
 
     // --- API Service ---
@@ -86,6 +87,8 @@ export class ComputeStack extends cdk.Stack {
       cluster: this.cluster,
       taskDefinition: apiTaskDef,
       desiredCount: 1,
+      minHealthyPercent: 100,
+      maxHealthyPercent: 200,
       securityGroups: [props.apiServiceSg],
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
@@ -120,15 +123,21 @@ export class ComputeStack extends cdk.Stack {
       },
     });
 
-    new ecs.FargateService(this, 'WorkerService', {
+    const workerService = new ecs.FargateService(this, 'WorkerService', {
       cluster: this.cluster,
       taskDefinition: workerTaskDef,
       desiredCount: 1,
+      minHealthyPercent: 100,
+      maxHealthyPercent: 200,
       securityGroups: [props.workerServiceSg],
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
       circuitBreaker: { enable: true, rollback: true },
     });
+
+    new cdk.CfnOutput(this, 'ClusterName', { value: this.cluster.clusterName });
+    new cdk.CfnOutput(this, 'ApiServiceName', { value: this.fargateService.serviceName });
+    new cdk.CfnOutput(this, 'WorkerServiceName', { value: workerService.serviceName });
 
     props.blobBucket.grantRead(workerTaskDef.taskRole);
     props.taskQueue.grantConsumeMessages(workerTaskDef.taskRole);

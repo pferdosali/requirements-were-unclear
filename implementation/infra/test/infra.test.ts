@@ -1,17 +1,20 @@
-// import * as cdk from 'aws-cdk-lib/core';
-// import { Template } from 'aws-cdk-lib/assertions';
-// import * as Infra from '../lib/infra-stack';
+import * as cdk from 'aws-cdk-lib';
+import { Template } from 'aws-cdk-lib/assertions';
+import { MessagingStack } from '../lib/messaging-stack';
+import { AuthStack } from '../lib/auth-stack';
+import { RoutingStack } from '../lib/routing-stack';
 
-// example test. To run these tests, uncomment this file along with the
-// example resource in lib/infra-stack.ts
-test('SQS Queue Created', () => {
-//   const app = new cdk.App();
-//     // WHEN
-//   const stack = new Infra.InfraStack(app, 'MyTestStack');
-//     // THEN
-//   const template = Template.fromStack(stack);
-
-//   template.hasResourceProperties('AWS::SQS::Queue', {
-//     VisibilityTimeout: 300
-//   });
-});
+for (const environment of ['production', 'staging']) {
+  test(`${environment} has isolated names, preserving existing production names`, () => {
+    const app = new cdk.App({ context: { environment } });
+    const suffix = environment === 'staging' ? '-staging' : '';
+    const messagingStack = new MessagingStack(app, 'Messaging');
+    const authStack = new AuthStack(app, 'Auth');
+    const routingStack = new RoutingStack(app, 'Routing');
+    const messaging = Template.fromStack(messagingStack);
+    messaging.hasResourceProperties('AWS::SQS::Queue', { QueueName: `docbridge-task-queue${suffix}` });
+    messaging.hasResourceProperties('AWS::SQS::Queue', { QueueName: `docbridge-job-queue${suffix}` });
+    Template.fromStack(authStack).hasResourceProperties('AWS::Cognito::UserPool', { UserPoolName: `docbridge-users${suffix}` });
+    Template.fromStack(routingStack).hasResourceProperties('AWS::DynamoDB::Table', { TableName: `docbridge-routing-config${suffix}` });
+  });
+}

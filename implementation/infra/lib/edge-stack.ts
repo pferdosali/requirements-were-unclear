@@ -1,3 +1,4 @@
+import { resourceName } from './environment';
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
@@ -41,7 +42,7 @@ export class EdgeStack extends cdk.Stack {
     });
 
     // CloudFront distribution
-    new cloudfront.Distribution(this, 'Distribution', {
+    const distribution = new cloudfront.Distribution(this, 'Distribution', {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(frontendBucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
@@ -62,9 +63,13 @@ export class EdgeStack extends cdk.Stack {
       ],
     });
 
+    new cdk.CfnOutput(this, 'FrontendBucketName', { value: frontendBucket.bucketName });
+    new cdk.CfnOutput(this, 'DistributionId', { value: distribution.distributionId });
+    new cdk.CfnOutput(this, 'FrontendUrl', { value: `https://${distribution.distributionDomainName}` });
+
     // WebSocket API Gateway
     new apigatewayv2.CfnApi(this, 'WebSocketApi', {
-      name: 'docbridge-ws',
+      name: resourceName(this, 'docbridge-ws'),
       protocolType: 'WEBSOCKET',
       routeSelectionExpression: '$request.body.action',
     });
