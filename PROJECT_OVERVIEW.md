@@ -1,10 +1,21 @@
 # DocBridge — Project Overview
 
-_A high-level snapshot of what DocBridge is, where it stands, the key decisions and
-assumptions behind it, and what comes next. For machine-verified live state, always
-run `./scripts/status.sh` — this document is the human narrative._
+_Start here for saved project state. Deployment setup is documented in [docs/CI_CD.md](docs/CI_CD.md); timestamped activity is preserved in [WORK_LOG.md](WORK_LOG.md)._
 
-**Last updated:** 2026-09-09 (docs published to main; SSH push set up; GitHub board reconciled — 0 open issues/PRs)
+**Last updated:** 2026-10-10 — CI/CD activation in progress.
+
+### Current session state
+
+- Implemented local validation → automatic staging → approved production promotion using one image digest and compiled frontend artifact.
+- Verified locally: 93 API tests, 2 infrastructure isolation tests, builds/typechecks, CDK synthesis for both environments, and Docker build.
+- GitHub environments `build`, `staging`, and `production` exist, restricted to `main`; production requires reviewer `pferdosali` and allows self-review.
+- Repository variable `DEPLOYMENTS_ENABLED=false` keeps cloud deployment off during provisioning. CI remains active.
+- AWS account is `930330383608`, region `us-east-1`. On this station use `AWS_PROFILE=default`; profile `dev` currently has no credentials.
+- Current remote documentation deletions are preserved. `START_HERE.md`, `STATUS.generated.md`, and `scripts/status.sh` were removed upstream; use this overview and direct verification commands instead.
+- Superseded local edits to the removed entry point/status script are preserved in a named git stash. Pre-existing architecture HTML files remain untouched.
+- Staging provisioning, scoped OIDC roles, environment resource variables, and remote CI/release verification are in progress. Production deployment requires user review after staging passes.
+
+The sections below retain historical design context. Claims of frontend wiring or regional storage completion should be checked against code and the current-session state above.
 
 ---
 
@@ -27,8 +38,7 @@ end-to-end system deployed live on AWS**.
 
 ## 2. Where We Are
 
-**Status: backend platform complete and live on AWS. Frontend integration is the one
-remaining feature area.**
+**Status: the API and frontend are implemented. CI/CD activation and authentication hardening are the current priorities. Historical deployment notes below predate staging.**
 
 - **Live on AWS** — us-east-1, account `930330383608`. End-to-end delivery pipeline
   (upload → queue → worker → destination) verified.
@@ -42,11 +52,11 @@ remaining feature area.**
 | Database | ✅ RDS PostgreSQL 16.9 (auto-migrates on startup) |
 | Messaging | ✅ SQS job + task queues with dead-letter queues |
 | Destination routing | ✅ DynamoDB config + 2 mock Lambda destinations |
-| Multi-region simulation | ✅ 3 regions, 5 personas, region-partitioned S3 folders |
-| CI/CD | ✅ GitHub Actions: test → build → push ECR → deploy ECS |
+| Multi-region simulation | Persona/destination definitions exist; upload region prefixes remain unfinished |
+| CI/CD | Staging-first workflow implemented; activation in progress with deployments disabled |
 | Audit logging | ✅ Structured JSON logs, correlation IDs |
 | Frontend UI shell | ✅ Deployed and serving (Figma Make generated) |
-| **Frontend ↔ backend wiring** | 🔜 **Next** — UI not yet driving the live API |
+| **Frontend ↔ backend wiring** | API client/upload flow exist; verify via staging acceptance tests |
 
 ### Live endpoints (verified 2026-09-09)
 
@@ -95,18 +105,10 @@ services + ALB/NAT are the ongoing spend).
 
 ## 3. Next Steps
 
-1. **Frontend Integration (the immediate priority).** The Figma Make UI shell is
-   deployed and rendering, but it is not yet wired to the live backend. A detailed
-   12-task integration spec exists at
-   `docs/specs/docbridge-frontend-backend-integration-spec.md`. Completing this makes
-   the platform demoable end-to-end through the browser.
-2. **Multi-region / multi-persona depth.** Basic simulation is live (3 regions,
-   5 personas, region-partitioned S3). Remaining work is tracked in
-   `docs/specs/docbridge-multi-region-multi-user-requirements.md`.
-3. **Production auth.** Replace the mock `x-user-id` header with real Cognito JWT
-   verification (the Cognito pool already exists). See the assumption in §4.
-4. **CI/CD hardening.** Configure the `AWS_DEPLOY_ROLE_ARN` secret so GitHub Actions
-   deploys via OIDC rather than long-lived keys.
+1. **Activate staging-first CI/CD.** Finish staging provisioning, approve scoped OIDC roles, populate verified resource variables, and run CI and a staging release. Production promotion remains manually approved.
+2. **Validate the full staging upload/delivery flow.** Use synthetic files across all three persona regions and verify job ownership isolation and delivered content.
+3. **Production authentication.** Replace backend mock `x-user-id` authentication with validated Cognito JWT identity; frontend Cognito integration alone does not enforce API authentication.
+4. **Task metadata and recovery.** Complete the retry endpoint, persistent file sizes/error details, secure status updates, and regional storage separation.
 
 _Housekeeping completed 2026-09-09: GitHub board reconciled (all 10 epics closed,
 stale PR #21 closed; 0 open issues/PRs), `PROJECT_OVERVIEW.md` + regenerated status
@@ -166,11 +168,10 @@ Full tradeoff analysis (worker image, file size, streaming vs buffer) lives in
 
 ```
 requirements-were-unclear/
-├── START_HERE.md                     # Canonical session entry point (read first)
-├── STATUS.generated.md               # Auto-generated live status (never edit by hand)
+├── WORK_LOG.md                       # Timestamped work and verification log
 ├── scripts/
-│   ├── status.sh                     # Generates status from git + GitHub + live AWS
-│   └── reconcile-board.sh            # Closes completed epic issues / stale PRs (needs write token)
+│   ├── validate.sh                   # Local and CI validation
+│   └── deploy-release.sh             # Deploy a fixed release and run smoke checks
 ├── CONTRIBUTING-agent.md             # Session "definition of done" contract
 ├── PROJECT_OVERVIEW.md               # ← this document
 ├── docs/
@@ -194,8 +195,10 @@ requirements-were-unclear/
 ## 7. How to Verify Current State
 
 ```bash
-# Ground-truth status from git + GitHub + live AWS probes
-./scripts/status.sh
+# Local and remote state (this station uses the default AWS profile)
+git status --short
+gh run list --limit 5
+aws cloudformation describe-stacks --profile default --region us-east-1 --query 'Stacks[].[StackName,StackStatus]'
 
 # Try the API directly (401 without the header is expected/healthy)
 curl -s https://dk9dmvpe7a2yb.cloudfront.net/api/health

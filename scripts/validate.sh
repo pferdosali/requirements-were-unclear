@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+python3 -m unittest discover -s scripts/tests
 for component in api frontend mock-destination infra; do
   (cd "implementation/$component" && npm ci)
 done

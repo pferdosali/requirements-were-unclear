@@ -65,3 +65,17 @@ Deployment artifacts include each previous and expected task-definition ARN. To 
 ECS circuit breakers handle service startup failures; smoke-test failures mark the release failed and block production but do not automatically reverse all changes. API, worker, and frontend updates are sequential rather than transactional. Retain ECR release digests and workflow artifacts needed for rollback. A workflow rerun builds a new release and goes through staging again.
 
 The currently published API uses mock identity headers. This pipeline does not resolve that authentication gap; JWT validation remains necessary before treating the application as production-ready.
+
+## Activation helpers
+
+This station uses `AWS_PROFILE=default`; profile `dev` currently has no credentials. Confirm the account with `aws sts get-caller-identity --profile default` before cloud work.
+
+`configure-deployment-access.py` discovers resource IDs and writes an exact plan under gitignored `.local/`. Planning is read-only:
+
+```bash
+AWS_PROFILE=default python3 scripts/configure-deployment-access.py --environment build --environment staging --environment production
+```
+
+After approval of [DEPLOYMENT_ACCESS_PLAN.md](DEPLOYMENT_ACCESS_PLAN.md), use the same command with `--apply` to configure scoped roles and environment variables/secrets. Never enable `DEPLOYMENTS_ENABLED` until staging is ready and both deployment roles are configured. `--apply` does not deploy applications or enable the release switch.
+
+Local provisioning outputs, inventories, logs, and task-specific Docker authentication files stay in `.local/`; current state and next steps are saved in `PROJECT_OVERVIEW.md` and `WORK_LOG.md`. Upstream removed the previous generated-status system; do not recreate it merely to satisfy outdated references.

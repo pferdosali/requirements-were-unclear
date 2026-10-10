@@ -1,0 +1,6 @@
+# Local deployment inventories, authentication caches, and provision logs
+.local/
+
+# Python helper bytecode
+__pycache__/
+*.pyc
