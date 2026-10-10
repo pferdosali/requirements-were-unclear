@@ -41,10 +41,23 @@ export class EdgeStack extends cdk.Stack {
       autoDeleteObjects: true,
     });
 
+    // Rewrite SPA navigation only on the frontend behavior. Global error pages
+    // also rewrite API 403/404 responses, hiding authorization and routing errors.
+    const spaRewrite = new cloudfront.Function(this, 'SpaRewrite', {
+      code: cloudfront.FunctionCode.fromInline(`function handler(event) {
+  var request = event.request;
+  if (request.uri === '/api' || request.uri.indexOf('/api/') === 0) return request;
+  var lastSegment = request.uri.substring(request.uri.lastIndexOf('/') + 1);
+  if (lastSegment.indexOf('.') === -1) request.uri = '/index.html';
+  return request;
+}`),
+    });
+
     // CloudFront distribution
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(frontendBucket),
+        functionAssociations: [{ function: spaRewrite, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST }],
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
       },
       additionalBehaviors: {
@@ -57,10 +70,6 @@ export class EdgeStack extends cdk.Stack {
         },
       },
       defaultRootObject: 'index.html',
-      errorResponses: [
-        { httpStatus: 403, responsePagePath: '/index.html', responseHttpStatus: 200 },
-        { httpStatus: 404, responsePagePath: '/index.html', responseHttpStatus: 200 },
-      ],
     });
 
     new cdk.CfnOutput(this, 'FrontendBucketName', { value: frontendBucket.bucketName });

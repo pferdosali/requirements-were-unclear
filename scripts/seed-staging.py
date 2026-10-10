@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import secrets
 import subprocess
+import tempfile
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -19,6 +20,26 @@ def aws(*args):
 
 def resources(stack):
     return aws('cloudformation', 'describe-stack-resources', '--stack-name', stack)['StackResources']
+
+
+def create_demo_user(pool, user, email):
+    payload = {'UserPoolId': pool, 'Username': email, 'MessageAction': 'SUPPRESS',
+               'TemporaryPassword': secrets.token_urlsafe(24) + 'aA1!',
+               'UserAttributes': [{'Name': 'email', 'Value': email},
+                                  {'Name': 'email_verified', 'Value': 'true'},
+                                  {'Name': 'name', 'Value': f'Staging {user}'}]}
+    state = ROOT / '.local'
+    state.mkdir(exist_ok=True)
+    # Use a mode-0600 temporary file for CLI compatibility; remove it on every exit.
+    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=state, prefix='staging-user-', suffix='.json') as temporary:
+        json.dump(payload, temporary)
+        temporary.flush()
+        result = subprocess.run(['aws', '--region', REGION, '--output', 'json', 'cognito-idp',
+                                 'admin-create-user', '--cli-input-json', 'file://' + temporary.name],
+                                text=True, capture_output=True)
+
+    if result.returncode:
+        raise RuntimeError(result.stderr)
 
 
 def seed(origin):
@@ -61,9 +82,7 @@ def seed(origin):
         if 'UserNotFoundException' not in existing.stderr:
             raise RuntimeError(existing.stderr)
         # Suppress invitations. Random temporary credentials are not logged or retained.
-        aws('cognito-idp', 'admin-create-user', '--user-pool-id', pool, '--username', email,
-            '--message-action', 'SUPPRESS', '--temporary-password', secrets.token_urlsafe(24) + 'aA1!',
-            '--user-attributes', f'Name=email,Value={email}', 'Name=email_verified,Value=true', f'Name=name,Value=Staging {user}')
+        create_demo_user(pool, user, email)
     print(f'Seeded {count} staging-only routing entries and five suppressed Cognito demo users.')
     print('Temporary demo credentials are not retained; reset credentials for real SRP testing. Current API acceptance uses mock identity headers.')
 

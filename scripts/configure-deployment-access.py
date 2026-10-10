@@ -34,9 +34,11 @@ def discover(environment):
     api = next(s for s in data if 'ApiService' in s['serviceName'])
     worker = next(s for s in data if 'WorkerService' in s['serviceName'])
     pass_roles = set()
+    task_families = set()
     for service in [api, worker]:
         task = aws('ecs', 'describe-task-definition', '--task-definition', service['taskDefinition'])['taskDefinition']
         pass_roles.update([task['taskRoleArn'], task['executionRoleArn']])
+        task_families.add(f"arn:aws:ecs:{REGION}:{ACCOUNT}:task-definition/{task['family']}:*")
     edge = aws('cloudformation', 'describe-stack-resources', '--stack-name', f'{prefix}-Edge')['StackResources']
     bucket = next(r['PhysicalResourceId'] for r in edge if r['ResourceType'] == 'AWS::S3::Bucket')
     distribution_id = next(r['PhysicalResourceId'] for r in edge if r['ResourceType'] == 'AWS::CloudFront::Distribution')
@@ -49,7 +51,7 @@ def discover(environment):
                          'FRONTEND_BUCKET': bucket, 'CLOUDFRONT_DISTRIBUTION_ID': distribution_id,
                          'FRONTEND_URL': f"https://{distribution['DomainName']}",
                          'COGNITO_USER_POOL_ID': pool, 'COGNITO_CLIENT_ID': client},
-            'serviceArns': [api['serviceArn'], worker['serviceArn']], 'passRoles': sorted(pass_roles)}
+            'serviceArns': [api['serviceArn'], worker['serviceArn']], 'passRoles': sorted(pass_roles), 'taskFamilyArns': sorted(task_families)}
 
 
 def policy_for(environment, inventory):
@@ -62,7 +64,8 @@ def policy_for(environment, inventory):
     else:
         v = inventory['variables']
         rules = [statement(['ecs:DescribeServices', 'ecs:UpdateService'], inventory['serviceArns']),
-                 statement(['ecs:DescribeTaskDefinition', 'ecs:RegisterTaskDefinition'], '*'),
+                 statement(['ecs:DescribeTaskDefinition'], '*'),
+                 statement(['ecs:RegisterTaskDefinition'], inventory['taskFamilyArns']),
                  statement(['iam:PassRole'], inventory['passRoles'],
                            Condition={'StringEquals': {'iam:PassedToService': 'ecs-tasks.amazonaws.com'}}),
                  statement(['s3:ListBucket'], f"arn:aws:s3:::{v['FRONTEND_BUCKET']}"),

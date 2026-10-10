@@ -19,9 +19,10 @@ class DeploymentAccessTest(unittest.TestCase):
             prefix = f'arn:aws:ecs:us-east-1:{access.ACCOUNT}:service/{environment}'
             roles = [f'arn:aws:iam::{access.ACCOUNT}:role/{environment}-task']
             inventory = {'variables': {'FRONTEND_BUCKET': f'{environment}-frontend', 'CLOUDFRONT_DISTRIBUTION_ID': environment},
-                         'serviceArns': [prefix], 'passRoles': roles}
+                         'serviceArns': [prefix], 'passRoles': roles, 'taskFamilyArns': [f'task-family-{environment}:*']}
             rules = access.policy_for(environment, inventory)['Statement']
             self.assertEqual(next(r for r in rules if 'ecs:UpdateService' in r['Action'])['Resource'], [prefix])
+            self.assertEqual(next(r for r in rules if 'ecs:RegisterTaskDefinition' in r['Action'])['Resource'], [f'task-family-{environment}:*'])
             pass_role = next(r for r in rules if 'iam:PassRole' in r['Action'])
             self.assertEqual(pass_role['Resource'], roles)
             self.assertEqual(pass_role['Condition']['StringEquals']['iam:PassedToService'], 'ecs-tasks.amazonaws.com')

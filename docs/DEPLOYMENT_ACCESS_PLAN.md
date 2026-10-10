@@ -7,7 +7,7 @@ Create roles `docbridge-github-build`, `docbridge-github-staging`, and `docbridg
 - Build: authenticate to ECR and push/read release images only in the `docbridge` repository.
 - Staging: update only staging API/worker services, pass only their existing task/execution roles to ECS, publish only the staging frontend bucket, and invalidate only the staging distribution.
 - Production: equivalent scope limited to the existing production resources discovered locally.
-- ECS task-definition registration/description require `Resource: "*"`; deployment and role-passing permissions remain scoped. These roles receive no CDK, IAM-management, database, document-bucket, or resource-deletion permissions.
+- ECS task-definition description requires `Resource: "*"`; registration is limited to the two service task families, and deployment/role-passing remain scoped. [AWS service authorization reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_ecs.html). These roles receive no direct CDK, IAM-management, database, document-bucket, or resource-deletion permissions.
 - Set the role ARN as environment secret `AWS_DEPLOY_ROLE_ARN`, and populate resource variables from verified AWS discovery. The secret is a role identifier, not an AWS access key.
 - Production application deployment remains a separate GitHub approval by `pferdosali`.
 
