@@ -6,6 +6,8 @@ A clinical document upload orchestration platform. Users upload files once — t
 
 **Live on AWS** (us-east-1, account 930330383608). End-to-end delivery pipeline verified.
 
+Current session state: [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md). Pipeline setup: [docs/CI_CD.md](docs/CI_CD.md). Timestamped work: [WORK_LOG.md](WORK_LOG.md).
+
 ---
 
 ## Quick Status
@@ -16,8 +18,8 @@ A clinical document upload orchestration platform. Users upload files once — t
 | Worker | ✅ Running on ECS Fargate (SQS consumer) |
 | Infrastructure | ✅ 8 CDK stacks deployed |
 | Database | ✅ RDS PostgreSQL 16.9 (auto-migrates on startup) |
-| CI/CD | ✅ GitHub Actions (test → build → push ECR → deploy ECS) |
-| Frontend | 🔜 Next — Figma Make UI shell ready, needs backend wiring |
+| CI/CD | CI verified; staging-first release activation in progress |
+| Frontend | API/upload wiring exists; staging acceptance is being verified |
 | Destination Routing | ✅ DynamoDB config + 2 mock Lambda destinations |
 
 ---
@@ -151,7 +153,7 @@ requirements-were-unclear/
 | #7 Status Tracking UI | ✅ Complete | WebSocket + polling fallback |
 | #8 Audit Logging | ✅ Complete | Structured JSON, correlation IDs |
 | #10 CI/CD | ✅ Complete | Docker → ECR → ECS, GitHub Actions |
-| **Frontend Integration** | **🔜 Next** | UI shell ready, 12-task wiring spec |
+| **Frontend Integration** | **Implemented, verification pending** | API wiring exists; staging acceptance covers upload/delivery |
 
 ---
 
@@ -166,7 +168,7 @@ npm run dev              # Express on :3000
 # Worker (optional)
 npm run dev:worker       # SQS consumer
 
-# Frontend (after wiring)
+# Frontend
 cd implementation/frontend
 pnpm install
 pnpm dev                 # Vite on :5173
@@ -192,9 +194,9 @@ See [`docs/decisions/001-open-questions-tradeoffs.md`](docs/decisions/001-open-q
 
 ## What's Next
 
-1. **Frontend Integration** — Wire the Figma Make UI to the backend using the [12-task integration spec](docs/specs/docbridge-frontend-backend-integration-spec.md)
-2. **Multi-Region/Multi-Persona** — Implement the [requirements spec](docs/specs/docbridge-multi-region-multi-user-requirements.md)
-3. **GitHub Actions OIDC** — Configure `AWS_DEPLOY_ROLE_ARN` secret for automated deploys
+1. **Activate staging-first releases** — Finish isolated staging, approve the scoped roles in the local access plan, populate verified environment variables, and enable `DEPLOYMENTS_ENABLED` after acceptance passes. Production promotion remains approved through its GitHub environment.
+2. **Enforce production authentication** — Validate Cognito JWTs in the API; the current backend still uses mock identity headers.
+3. **Complete regional storage and task recovery** — Follow the multi-region requirements and close retry/file-size/error-detail gaps.
 
 ---
 

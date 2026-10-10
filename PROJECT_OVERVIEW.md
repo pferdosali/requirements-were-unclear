@@ -2,19 +2,19 @@
 
 _Start here for saved project state. Deployment setup is documented in [docs/CI_CD.md](docs/CI_CD.md); timestamped activity is preserved in [WORK_LOG.md](WORK_LOG.md)._
 
-**Last updated:** 2026-10-10 — CI/CD activation in progress.
+**Last updated:** 2026-10-10 — Staging verified; CI deployment-role approval pending.
 
 ### Current session state
 
 - Implemented local validation → automatic staging → approved production promotion using one image digest and compiled frontend artifact.
-- Verified locally: 93 API tests, 2 infrastructure isolation tests, builds/typechecks, CDK synthesis for both environments, and Docker build.
+- Verified locally: 93 API tests, 3 infrastructure tests and 4 deployment/helper tests, builds/typechecks, CDK synthesis for both environments, and Docker build.
 - GitHub environments `build`, `staging`, and `production` exist, restricted to `main`; production requires reviewer `pferdosali` and allows self-review.
 - Repository variable `DEPLOYMENTS_ENABLED=false` keeps cloud deployment off during provisioning. CI remains active.
 - AWS account is `930330383608`, region `us-east-1`. On this station use `AWS_PROFILE=default`; profile `dev` currently has no credentials.
 - Current remote documentation deletions are preserved. `START_HERE.md`, `STATUS.generated.md`, and `scripts/status.sh` were removed upstream; use this overview and direct verification commands instead.
 - Superseded local edits to the removed entry point/status script are preserved in a named git stash. Pre-existing architecture HTML files remain untouched.
-- Pipeline is published to main. [Remote CI run 38073024504](https://github.com/pferdosali/requirements-were-unclear/actions/runs/38073024504) passed; build/deploy jobs were correctly skipped while deployments are disabled.
-- Staging provisioning and acceptance tests are in progress. Scoped CI OIDC roles await user approval after automatic approval review rejected their persistent privilege grants. Exact policies are local in `.local/DEPLOYMENT_ACCESS_PLAN.md`. Production deployment requires separate GitHub review after staging passes.
+- Pipeline is published to main. [Remote CI run 38075421799](https://github.com/pferdosali/requirements-were-unclear/actions/runs/38075421799) passed; build/deploy jobs were correctly skipped while deployments are disabled.
+- All eight staging stacks are provisioned; frontend, CORS, 25 routing entries and five demo users are configured. The frontend-only SPA rewrite is deployed to staging. All three regional synthetic uploads completed with matching delivered bytes and cross-user/same-team ownership isolation. Frontend/deep links/config returned 200; unauthenticated API returned 401. Private evidence is in `.local/staging-acceptance.json` and `.local/staging-probes.log`. Scoped CI OIDC roles await user approval after automatic approval review rejected their persistent privilege grants. Exact policies are local in `.local/DEPLOYMENT_ACCESS_PLAN.md`. Production deployment requires separate GitHub review after staging passes.
 
 The sections below retain historical design context. Claims of frontend wiring or regional storage completion should be checked against code and the current-session state above.
 
@@ -43,7 +43,7 @@ end-to-end system deployed live on AWS**.
 
 - **Live on AWS** — us-east-1, account `930330383608`. End-to-end delivery pipeline
   (upload → queue → worker → destination) verified.
-- **10 of 11 epics complete** — everything except wiring the UI to the backend.
+- **Core modules are implemented.** Current activation and verification work is recorded above; historical epic completion notes do not establish production readiness.
 
 | Component | Status |
 |-----------|--------|
@@ -150,10 +150,7 @@ Full tradeoff analysis (worker image, file size, streaming vs buffer) lives in
   vision but planned for P1.
 - **The worker processes one message at a time.** Memory-buffered delivery is safe under
   this assumption; concurrent large-file delivery would require revisiting.
-- **Regional support is simulated, not real multi-region infra.** A single AWS account
-  with region-prefixed S3 paths (`regions/{region}/...`, `delivered/{region}/...`)
-  emulates regional isolation for dev/demo. Regions modeled: `us-east-1`, `eu-west-1`,
-  `ap-southeast-1`.
+- **Regional support is simulated, not real multi-region infra.** Persona/team routing models three regions. Raw uploads currently use `uploads/{userId}/...`; region-prefixed uploads remain planned. Mock destinations use region-specific delivered paths. Staging is an isolated environment in the same AWS region, not a new geographical deployment.
 - **Auth is mocked in the current build.** Requests carry an `x-user-id` header that maps
   to a team, which maps to a region. Production will use the existing Cognito pool. Where
   older docs claim Cognito JWT enforcement, the running code is header-based — this is a

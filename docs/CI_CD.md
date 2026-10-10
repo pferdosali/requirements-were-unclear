@@ -103,3 +103,7 @@ AWS_PROFILE=default python3 scripts/publish-staging-frontend.py --artifact-dir .
 ```
 
 This helper reads staging Edge/Auth outputs, compares against the live production distribution ID without embedding it, and refuses production, publishes assets before HTML, writes staging runtime configuration, and waits for CloudFront invalidation. Normal releases continue through the GitHub pipeline after activation.
+
+### Staging edge routing
+
+SPA navigation uses a CloudFront viewer-request function attached only to the frontend behavior. API responses retain their original HTTP status; the old global 403/404 fallback masked forbidden API responses as successful HTML. The fix is deployed and verified on staging: navigation works, API authorization errors retain their status, and all three regional synthetic delivery/ownership/byte checks passed. Production Edge infrastructure requires a separate reviewed CDK update; application release jobs do not modify infrastructure.

@@ -30,10 +30,9 @@ This applies to **AI agents and humans alike**. It is short on purpose.
 _Newest first. Keep entries to ~3 lines: Done / Next / Blockers._
 
 ### 2026-10-10 (pipeline activation)
-- **Done:** Published staging-first CI pipeline; created main-only GitHub environments and production reviewer; identified working AWS profile `default`; pushed a tested staging image and started staging stack provisioning. Updated overview, deployment guide, work log, and private access plan.
-- **Next:** Finish staging/CORS/routing/test-user setup; verify synthetic delivery and CI; apply scoped OIDC roles only after user approval; enable releases and stop at the production approval gate.
-- **Blockers:** IAM role creation awaits explicit user approval after automatic review rejection. Exact access policies remain gitignored in `.local/DEPLOYMENT_ACCESS_PLAN.md`; the public document is a summary.
-
+- **Done:** Published staging-first CI; created GitHub environments and production reviewer; provisioned all eight isolated staging stacks; published frontend/CORS and seeded 25 routes/five demo users. Fixed API-error masking with a frontend-only SPA rewrite on staging. Three-region delivery, ownership isolation, delivered bytes and site probes passed; remote CI 38075421799 passed.
+- **Next:** Apply scoped OIDC roles only after approval, enable releases, and verify a staged pipeline run before production review. Production Edge requires its own reviewed infrastructure update.
+- **Blockers:** IAM role creation awaits explicit user approval after automatic review rejection. Exact policies are gitignored in `.local/DEPLOYMENT_ACCESS_PLAN.md`; public `docs/DEPLOYMENT_ACCESS_PLAN.md` summarizes permissions. `DEPLOYMENTS_ENABLED=false`.
 
 ### 2026-09-09
 - **Done:** Added `PROJECT_OVERVIEW.md` (status/decisions/assumptions/next steps) and
